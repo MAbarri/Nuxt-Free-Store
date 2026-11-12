@@ -1,0 +1,331 @@
+# AI Build Progress — Fashion E-commerce Platform
+
+This file is a handoff document for continuing this build in a fresh/compacted
+conversation. Read this alongside `SPEC.md` (the full project specification —
+read that first for requirements, data model, and the overall plan). This file
+covers **what's actually been built, how, and what's left**.
+
+Git history is also a reliable source of truth: one commit per phase, in
+order, each with a descriptive message. Run `git log --oneline --reverse` to
+see them.
+
+---
+
+## Current status: Phases 1–8 done, 9–11 remaining
+
+| Phase | Status |
+|---|---|
+| 1. Foundation | ✅ Done |
+| 2. Catalog | ✅ Done |
+| 3. Storefront browsing | ✅ Done |
+| 4. Cart & wishlist | ✅ Done |
+| 5. Checkout & COD | ✅ Done |
+| 6. Admin dashboard shell | ✅ Done |
+| 7. Order management | ✅ Done |
+| 8. Customer management | ✅ Done |
+| 9. Shipping configuration | ❌ Not started (backend read-path exists, no admin CRUD/UI) |
+| 10. Inventory management | ❌ Not started (core mechanics exist, no dedicated admin UI) |
+| 11. Testing, security review, deployment | ❌ Not started |
+
+**Plus two gaps noticed outside the 11-phase list, not yet built:**
+- Customer-facing auth pages (`/login`, `/register`, `/account` profile + order
+  history). The backend (`/api/auth/*`) is fully built and tested via curl,
+  but there is **no storefront UI** for a customer to register/log in — only
+  the admin login page exists (`/admin/login`). The header already links to
+  `/account`, which doesn't exist yet (404).
+- Store settings admin page (`/admin/settings`). `store_settings` currently
+  only has hardcoded defaults in `server/services/settings.service.ts` with
+  no admin UI to edit branding/hero/accent color/default shipping fee. The
+  admin sidebar already links to `/admin/settings`, which doesn't exist yet.
+
+Recommended order to continue: fold the two gaps in alongside Phase 9/10
+(store settings pairs naturally with shipping's "default shipping fee"
+concern; customer account pages pair naturally with customer management),
+then do Phase 11 last.
+
+---
+
+## Tech stack (as built)
+
+- Nuxt 4.6, Vue 3, TypeScript, Nitro preset `cloudflare-module`
+- Tailwind CSS v4 + Nuxt UI v4 (editorial-minimalist design tokens: Fraunces
+  display font, Inter body font, bone/stone neutrals, "clay" terracotta
+  accent — see `app/assets/css/main.css` and `app/app.config.ts`)
+- Drizzle ORM + Cloudflare D1 (24 tables, see `server/database/schema/`)
+- Cloudflare R2 for product images, served via `server/routes/media/[...path].get.ts`
+- pnpm, Node 22 (see `.nvmrc` — **must** `nvm use 22` before any command;
+  Node 20 is too old for Vitest 5/Vite 8)
+- Vitest via `@cloudflare/vitest-plugin` (tests run inside real `workerd`,
+  not mocked) — note the package was renamed from
+  `@cloudflare/vitest-pool-workers`, keep using `@cloudflare/vitest-plugin`
+- Custom auth: Web Crypto PBKDF2 password hashing, D1-backed sessions,
+  httpOnly cookies — no third-party auth library
+
+## Local dev workflow
+
+```sh
+export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use 22
+pnpm install
+pnpm db:generate          # after any schema change in server/database/schema/
+pnpm db:migrate:local      # apply to local D1 (wrangler/Miniflare state)
+pnpm dev --port 3300       # dev server with Cloudflare bindings emulated
+pnpm build                 # production build check
+pnpm test                  # vitest (20 tests as of Phase 8)
+```
+
+To promote a registered user to admin for manual testing (no seed script
+exists yet):
+```sh
+npx wrangler d1 execute fashion_store_db --local --command \
+  "UPDATE users SET role='admin' WHERE email='you@example.com';"
+```
+
+**Known test data in the local D1 state** (`.wrangler/state/v3`, not
+committed): a product "Linen Midi Dress" (slug `linen-midi-dress`) with
+Color/Size variants, category "Dresses", an admin user, several test
+customers, and a few placed/cancelled orders from manual verification during
+Phases 5–8. This is disposable dev data, not a seed script — feel free to
+wipe `.wrangler/state/v3` for a clean slate if needed (migrations will need
+reapplying with `pnpm db:migrate:local`).
+
+**Shell gotcha**: this environment's shell is **zsh**, which does not
+word-split unquoted variables like bash. Never store a flag+value combo in
+one variable (e.g. `C="-b cookies.txt"` then `curl $C ...`) — zsh passes it
+as a single broken argv token and curl silently drops the cookie. Always
+write flags literally: `curl -b /tmp/cookies.txt ...`, or put only the bare
+path in a variable.
+
+---
+
+## Architectural conventions (follow these for consistency)
+
+### Server-side layering
+`server/api/**` (thin, wrapped in `defineApiHandler`) → `server/services/**`
+(business logic, auth checks, orchestration) → `server/repositories/**`
+(Drizzle queries only, no business logic) → `server/database/schema/**`.
+
+### API response envelope
+Every route uses `defineApiHandler` from `server/utils/handler.ts`, which
+wraps the result as `{ success: true, data }` or `{ success: false, error:
+{ statusCode, message, details } }`. Never return raw objects from a route
+file — always `export default defineApiHandler(async (event) => {...})`.
+
+### Relative import path depth (common mistake, watch for it)
+Nitro route files are nested under `server/api/...` and relative imports to
+`server/utils`, `server/services` etc. must count directory depth correctly.
+E.g. `server/api/admin/products/[id]/variants/index.post.ts` needs
+`'../../../../../utils/handler'` (5 levels up to reach `server/`). Builds
+fail loudly (`Cannot resolve ...`) if this is wrong — always run `pnpm
+build` after adding new nested routes.
+
+### Auth
+- `requireAuthUser(event)` / `requireAdmin(event)` from
+  `server/utils/session.ts` — throws 401/403. Call at the top of every
+  protected route.
+- `getAuthUser(event)` caches on `event.context.auth` so repeated calls in
+  one request don't re-hit the DB.
+- `resolveCustomerProfileId(event)` in `server/utils/customer.ts` — shared
+  helper used by cart/wishlist/checkout to resolve a logged-in customer's
+  profile id (or null for guests).
+
+### Database access
+Always via `useDb(event)` from `server/utils/db.ts`. This returns a Drizzle
+client bound to `D1.withSession('first-primary')` — **do not** remove this,
+it fixes a real D1 read-replication bug (see "Bugs found and fixed" below).
+
+### Guest identity (cart/wishlist)
+`server/utils/guestToken.ts` manages a `guest_id` cookie, separate from the
+auth session cookie. `getGuestToken`/`getOrCreateGuestToken` cache on
+`event.context.guestToken` — **do not** remove this caching (see bugs below).
+
+### Client-side API calls
+Always use the `apiFetch<T>(url, opts)` composable from
+`app/composables/useApi.ts`, never raw `$fetch` or `useAsyncData(key, () =>
+$fetch(...))`, for anything that might depend on cookies (cart, wishlist,
+auth, admin data). `apiFetch` branches to `useRequestFetch()` on the server
+specifically to forward cookies during SSR — raw `$fetch` does not do this
+automatically (see bugs below). `useFetch`/`useLazyFetch` (the Nuxt
+composables, not raw `$fetch`) are also safe since Nuxt handles this
+internally for those.
+
+### Shared reactive state
+`useCart()` and `useWishlist()` composables (`app/composables/`) wrap
+`useState` so the header badge and any page stay in sync without prop
+drilling. Call their methods (`addItem`, `updateQuantity`, etc.) rather than
+calling `apiFetch` directly against `/api/cart/*`/`/api/wishlist/*` from
+page components.
+
+### Money
+All prices are **integers in minor currency units (cents)**, both in the DB
+and over the API. Admin forms convert to/from dollars for display
+(`Math.round(dollars * 100)` on submit, `cents / 100` on load). Never store
+floats.
+
+### Variants — "default variant" pattern (important, non-obvious)
+Every product always has **at least one variant**, even if the merchant
+never defines Size/Color options — this is because stock is tracked at the
+variant level only (`product_variants.stock`), not on `products`. See
+`server/services/products.service.ts` (`create` auto-creates a default
+attribute-less variant) and `server/services/variants.service.ts` (adding
+the first *real* attributed variant deletes the auto default; deleting the
+last real variant re-creates a default so the product stays orderable). The
+storefront product page checks `attributeGroups.length > 0` to decide
+whether to show a variant picker UI at all.
+
+### Inventory
+`inventoryService.adjustStock(event, variantId, delta, reason, opts)` in
+`server/services/inventory.service.ts` is the **single** place stock is ever
+changed. It uses a conditional SQL `UPDATE ... WHERE stock + delta >= 0` to
+be safe under concurrent requests (tested with 8 concurrent buyers against 5
+units of stock). Every caller (checkout, admin manual adjustment, order
+cancellation restore) goes through this, logging an `inventory_adjustments`
+row every time. **Never** write a raw `UPDATE product_variants SET stock =
+...` anywhere else.
+
+### Order status → stock restoration
+`server/services/orders.service.ts`: moving an order's status to
+`cancelled` or `returned` auto-restores stock for all its items (guarded
+against double-restore). Ordinary progression (confirmed → processing →
+shipped → delivered) never touches stock.
+
+---
+
+## Bugs found and fixed during the build (do not regress these)
+
+1. **D1 read-after-write consistency**: a session/cart row written in one
+   request could be invisible to a read moments later if routed to a stale
+   replica. Fixed by always using `env.DB.withSession('first-primary')` in
+   `useDb()`.
+2. **Cookie set ≠ cookie readable in the same request**: `setCookie()`
+   only takes effect on the *next* request; `getCookie()` reading back
+   immediately in the same handler sees nothing. Fixed by caching the guest
+   token on `event.context.guestToken` the moment it's created (same
+   pattern already used for `event.context.auth`).
+3. **`carts.guestToken` unique index blocking reuse**: a merged ("converted")
+   guest cart used to be kept with `status: 'converted'` but the same
+   `guestToken` value, which permanently blocked that guest identity from
+   ever starting a new cart (unique index violation). Fixed by deleting the
+   guest cart row entirely once merged, instead of just marking it
+   converted. Regression test: `tests/unit/cart-merge.test.ts`.
+4. **SSR cookie forwarding**: plain global `$fetch` during SSR does **not**
+   forward the incoming request's cookies to internal API calls — only
+   `useRequestFetch()` (used internally by `useFetch`/`useAsyncData`+proper
+   usage) does. This silently broke server-rendered `/cart` and `/wishlist`
+   pages (always showed empty). Fixed centrally in `apiFetch` (branches to
+   `useRequestFetch()` on the server) and in `AdminTopbar.vue` (switched
+   from `useAsyncData(() => $fetch(...))` to `useFetch(...)`).
+
+If something cookie/session-related looks subtly broken again, re-read
+these four first.
+
+---
+
+## Data model notes beyond SPEC.md §9
+
+- `product_attributes.display_type`: `'text' | 'select' | 'swatch'`.
+  `'swatch'` attributes carry a hex color on each `product_attribute_values`
+  row and render as color chips on the storefront.
+- `size_guides.content` is a JSON blob: `{ columns: string[], rows:
+  Record<string,string>[] }`. Assigned to a category, optionally overridden
+  per product (`products.size_guide_id`).
+- `orders`/`order_items` always snapshot product/variant data at order time
+  (name, SKU, variant label like `"Color: Black / Size: S"`, unit price) —
+  never joined live from `products`/`product_variants` for historical
+  display.
+- `order_number` format: `ORD-YYYYMMDD-XXXXXX` (6 random uppercase
+  hex/base36 chars), generated with a uniqueness pre-check + retry loop
+  (`server/services/checkout.service.ts`).
+- Revenue definition used by the dashboard (`server/services/dashboard.service.ts`):
+  sum of `orders.total` **excluding** `cancelled`/`returned`/`failed_delivery`
+  statuses. "Pending orders" = any of
+  `pending_confirmation/confirmed/processing/shipped`. "Awaiting
+  confirmation" = `pending_confirmation` only. These are deliberate
+  interpretations of slightly ambiguous brief language — revisit if the user
+  wants different definitions.
+
+---
+
+## Testing
+
+20 tests across 5 files in `tests/unit/`, all exercising real business logic
+against the real D1 schema (not mocked):
+
+- `password.test.ts` — PBKDF2 hash/verify round trip
+- `inventory.test.ts` — concurrency-safe stock adjustment (the 8-vs-5 race
+  test), adjustment history
+- `cart-merge.test.ts` — guest→account cart merge, quantity combination,
+  guest-token-reuse-after-merge regression
+- `checkout.test.ts` — order creation, empty-cart rejection, sold-out
+  rejection + stock untouched, multi-item rollback-on-partial-failure
+- `order-management.test.ts` — stock restoration on cancel, no
+  double-restore, restoration on `returned`, no restoration on normal
+  progression, independent payment-status updates
+
+Run via `pnpm test`. Uses `tests/setup/apply-migrations.ts` +
+`vitest.config.ts`'s `cloudflareTest` plugin — migrations are read from
+`server/database/migrations/` and applied to the in-memory D1 per test file.
+
+No component/E2E tests exist yet (Phase 11 could add Playwright if desired,
+but wasn't in the agreed Vitest-first testing strategy from SPEC.md).
+
+---
+
+## What's left — concrete next steps
+
+### Phase 9: Shipping configuration
+Backend already has `server/repositories/shipping.repository.ts` (zones +
+rates CRUD methods already written, just unused by any route yet) and
+`server/services/shipping.service.ts` (`calculateFee`, used by checkout).
+Need:
+- Zod schemas + admin API routes: `POST/PUT/DELETE` for zones and rates
+  under `server/api/admin/shipping/...`
+- Admin UI `/admin/shipping`: list zones, create/edit (name, free-shipping
+  threshold, active toggle), manage rates within a zone (city, fee, active
+  toggle)
+
+### Phase 10: Inventory management
+Backend already has everything in `inventoryService` (adjustStock, history,
+lowStock) and an existing API route
+(`server/api/admin/inventory/adjustments.post.ts`,
+`low-stock.get.ts`, `variants/[variantId]/history.get.ts`). Need:
+- A route to list **all** variants (not just low-stock ones), with product
+  name/sku/search, probably `server/api/admin/inventory/index.get.ts`
+- Admin UI `/admin/inventory`: searchable table of all variants with stock,
+  quick adjust action (reuse the modal pattern from
+  `app/pages/admin/products/[id].vue`), and a way to view a variant's full
+  adjustment history
+
+### Two gaps (recommended to do alongside 9/10)
+- **Customer auth pages**: `/login`, `/register` (simple forms posting to
+  the already-working `/api/auth/login`/`/api/auth/register`), `/account`
+  (profile info + order history, reusing patterns from
+  `app/pages/admin/customers/[id].vue` but customer-facing/read-mostly), a
+  logout action, and a route middleware for protecting `/account/*`
+  (customer-equivalent of `app/middleware/admin.ts`).
+- **Store settings admin page**: `/admin/settings` + API routes using
+  `settingsService.set()` (already exists, just unused) to edit storeName,
+  tagline, logoUrl, accentColor, defaultShippingFee, hero.*, promo.* fields.
+
+### Phase 11: Testing, security review, deployment
+- Optionally expand test coverage further
+- Security pass: re-verify every admin route has `requireAdmin`, review
+  cookie flags, consider basic rate-limiting on `/api/auth/login` and
+  `/api/auth/register` (currently none — brute-force is possible), confirm
+  no sensitive fields (password hashes, other customers' data) ever appear
+  in API responses
+- Real Cloudflare deployment (see `docs/DEPLOYMENT.md`, already written in
+  Phase 1): `wrangler login`, create real D1/R2/KV resources, update
+  `wrangler.jsonc` placeholders with real IDs, `pnpm db:migrate:remote`,
+  connect Cloudflare Workers Builds to the GitHub repo for auto-deploy. This
+  needs the user's Cloudflare account — not yet done, `wrangler whoami`
+  showed not logged in as of Phase 1 and hasn't been revisited since.
+
+---
+
+## Files to read first in a fresh session
+
+1. `SPEC.md` — full requirements/spec, source of truth for scope
+2. This file
+3. `git log --oneline --reverse` — phase-by-phase commit history
+4. `server/database/schema/index.ts` and its siblings — full data model
+5. `docs/DEPLOYMENT.md` — Cloudflare setup steps when ready to deploy
