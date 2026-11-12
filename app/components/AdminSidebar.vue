@@ -3,6 +3,8 @@ const links = [
   { to: '/admin', label: 'Overview', icon: 'i-lucide-layout-dashboard' },
   { to: '/admin/products', label: 'Products', icon: 'i-lucide-shirt' },
   { to: '/admin/categories', label: 'Categories', icon: 'i-lucide-folder-tree' },
+  { to: '/admin/attributes', label: 'Attributes', icon: 'i-lucide-tags' },
+  { to: '/admin/sizes', label: 'Size guides', icon: 'i-lucide-ruler' },
   { to: '/admin/orders', label: 'Orders', icon: 'i-lucide-package' },
   { to: '/admin/customers', label: 'Customers', icon: 'i-lucide-users' },
   { to: '/admin/inventory', label: 'Inventory', icon: 'i-lucide-boxes' },
