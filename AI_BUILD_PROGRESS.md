@@ -11,7 +11,7 @@ see them.
 
 ---
 
-## Current status: Phases 1–10 done, settings page + Phase 11 remaining
+## Current status: Phases 1–10 + settings page done, Phase 11 remaining
 
 | Phase | Status |
 |---|---|
@@ -25,7 +25,8 @@ see them.
 | 8. Customer management | ✅ Done |
 | 9. Shipping configuration | ✅ Done |
 | 10. Inventory management | ✅ Done |
-| 11. Testing, security review, deployment | ❌ Not started |
+| Store settings admin page (gap, not a numbered phase) | ✅ Done |
+| 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
 - **Customer-facing auth pages** (`/login`, `/register`, `/account`) are
@@ -42,14 +43,9 @@ see them.
   functional if hit directly — re-enabling is just re-adding the two UI
   entry points. The header's `/account` icon was removed too, for the same
   reason (no account pages exist yet).
-- **Store settings admin page** (`/admin/settings`) is the **next thing to
-  build**, now that Phases 9–10 are done. `settingsService.set()` exists and
-  is unused — needs API routes + UI for branding/hero/accent
-  color/default shipping fee. The admin sidebar already links to
-  `/admin/settings`, which doesn't exist yet (404 today).
+- **Store settings admin page** (`/admin/settings`) is **done** (see below).
 
-Recommended order to continue: build the store settings admin page next,
-then do Phase 11 last.
+Recommended order to continue: **Phase 11** is all that's left.
 
 ---
 
@@ -327,16 +323,24 @@ Admin CRUD built on top of the pre-existing repository/service:
 - Customer-facing auth pages (`/login`, `/register`, `/account`) remain
   **not built**, by explicit user decision, not a gap to fix next
 
-### Next up: Store settings admin page (not yet started)
-- `settingsService.set()` already exists in
-  `server/services/settings.service.ts`, unused by any route
-- Needs: admin API routes (`GET`/`PUT` likely at
-  `server/api/admin/settings.get.ts` / `.put.ts`) + an `/admin/settings` page
-  to edit storeName, tagline, logoUrl, accentColor, defaultShippingFee,
-  hero.* and promo.* fields — check `settings.service.ts` and
-  `server/database/schema/settings.ts` for the exact field list before
-  starting
-- The admin sidebar already links to `/admin/settings` (currently 404)
+### Next up: Store settings admin page — ✅ done
+- `settingsService.updateMany(event, input)` writes only the keys present in
+  the request body via the existing `set()` method
+- Routes: `server/api/admin/settings.get.ts` / `.put.ts`, plus
+  `server/api/admin/settings/images.post.ts` (multipart upload to R2,
+  reuses `uploadImageToR2` with folder `settings`, returns `{ url }` for the
+  UI to store in `logoUrl` or `hero.imageUrl`)
+- `server/schemas/settings.schema.ts` validates accent color as a hex
+  string and the hero/promo object shapes
+- `/admin/settings` UI: branding (store name, tagline, logo upload +
+  preview, accent color picker), shipping default fee, hero section (title,
+  subtitle, CTA label/href, image upload + preview), promo banner
+  (title/subtitle)
+- Verified end-to-end: admin update → reflected immediately in public
+  `/api/store-settings` and the rendered homepage (checked storeName, hero
+  title, promo title all changed), invalid hex color rejected with 422,
+  non-admin blocked with 401, image upload to R2 returns a working
+  `/media/...` url, defaults restored after testing
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further
