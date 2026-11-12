@@ -1,6 +1,6 @@
-import { desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, lte, sql } from 'drizzle-orm'
 import { createError, type H3Event } from 'h3'
-import { productVariants, inventoryAdjustments } from '../database/schema'
+import { productVariants, inventoryAdjustments, products } from '../database/schema'
 import { useDb } from '../utils/db'
 import { generateId } from '../utils/id'
 
@@ -67,8 +67,17 @@ export const inventoryService = {
 
   async lowStock(event: H3Event, threshold = 5) {
     const db = useDb(event)
-    return db.select().from(productVariants)
-      .where(sql`${productVariants.stock} <= ${threshold} AND ${productVariants.isActive} = 1`)
-      .orderBy(productVariants.stock)
+    return db.select({
+      variantId: productVariants.id,
+      sku: productVariants.sku,
+      stock: productVariants.stock,
+      productId: products.id,
+      productName: products.name,
+      productStatus: products.status,
+    })
+      .from(productVariants)
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .where(and(eq(productVariants.isActive, true), eq(products.status, 'active'), lte(productVariants.stock, threshold)))
+      .orderBy(asc(productVariants.stock))
   },
 }
