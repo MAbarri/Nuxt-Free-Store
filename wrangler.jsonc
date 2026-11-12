@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fashion-store",
+  "compatibility_date": "2025-07-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./.output/server/index.mjs",
+
+  "assets": {
+    "directory": "./.output/public",
+    "binding": "ASSETS"
+  },
+
+  // NOTE: database_id and the KV id below are placeholders. Run the
+  // one-time setup in docs/DEPLOYMENT.md (`wrangler d1 create`,
+  // `wrangler kv namespace create`, `wrangler r2 bucket create`) once
+  // logged in, then paste the real ids here.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fashion_store_db",
+      "database_id": "REPLACE_WITH_REAL_D1_DATABASE_ID",
+      "migrations_dir": "server/database/migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "fashion-store-media"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+    }
+  ],
+
+  "vars": {
+    "SESSION_COOKIE_NAME": "store_session"
+  }
+}
