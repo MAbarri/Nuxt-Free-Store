@@ -89,4 +89,10 @@ export const shippingRepository = {
     const db = useDb(event)
     await db.delete(shippingRates).where(eq(shippingRates.id, id))
   },
+
+  async findRateById(event: H3Event, id: string) {
+    const db = useDb(event)
+    const [row] = await db.select().from(shippingRates).where(eq(shippingRates.id, id)).limit(1)
+    return row ?? null
+  },
 }

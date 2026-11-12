@@ -62,8 +62,6 @@ function formatPrice(cents: number) {
 }
 
 const { addItem: addCartItem } = useCart()
-const { wishlist, refresh: refreshWishlist, addItem: addWishlistItem, removeItem: removeWishlistItem, isWishlisted } = useWishlist()
-await useAsyncData('wishlist-init', refreshWishlist)
 
 async function addToCart() {
   if (!selectedVariant.value || !product.value) return
@@ -80,21 +78,6 @@ async function addToCart() {
   }
 }
 
-const wishlisted = computed(() => (product.value ? isWishlisted(product.value.id) : false))
-async function toggleWishlist() {
-  if (!product.value) return
-  try {
-    if (wishlisted.value) {
-      await removeWishlistItem(product.value.id)
-    }
-    else {
-      await addWishlistItem(product.value.id)
-    }
-  }
-  catch (e) {
-    toast.add({ title: 'Could not update wishlist', description: apiErrorMessage(e), color: 'error' })
-  }
-}
 </script>
 
 <template>
@@ -190,7 +173,6 @@ async function toggleWishlist() {
           <UButton size="xl" :disabled="!inStock" :loading="adding" class="grow" @click="addToCart">
             Add to cart
           </UButton>
-          <UButton size="xl" variant="outline" color="neutral" :icon="wishlisted ? 'i-lucide-heart-off' : 'i-lucide-heart'" @click="toggleWishlist" />
         </div>
 
         <div v-if="product.description" class="mt-8 border-t border-stone-200 pt-6 text-sm text-stone-600">

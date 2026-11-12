@@ -6,3 +6,9 @@ export const inventoryAdjustSchema = z.object({
   reason: z.enum(['manual_adjustment', 'restock']),
   note: z.string().trim().max(500).optional(),
 })
+
+export const inventoryListQuerySchema = z.object({
+  search: z.string().trim().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().optional(),
+})

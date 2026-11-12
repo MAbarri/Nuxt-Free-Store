@@ -1,8 +1,21 @@
-import { and, asc, desc, eq, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, like, lte, or, sql } from 'drizzle-orm'
 import { createError, type H3Event } from 'h3'
-import { productVariants, inventoryAdjustments, products } from '../database/schema'
+import {
+  productVariants,
+  inventoryAdjustments,
+  products,
+  variantAttributeValues,
+  productAttributeValues,
+  productAttributes,
+} from '../database/schema'
 import { useDb } from '../utils/db'
 import { generateId } from '../utils/id'
+
+export interface VariantListFilters {
+  search?: string
+  page?: number
+  pageSize?: number
+}
 
 export type AdjustmentReason = 'order_placed' | 'order_cancelled' | 'manual_adjustment' | 'restock'
 
@@ -63,6 +76,69 @@ export const inventoryService = {
     return db.select().from(inventoryAdjustments)
       .where(eq(inventoryAdjustments.variantId, variantId))
       .orderBy(desc(inventoryAdjustments.createdAt))
+  },
+
+  /** Every variant across the catalog, searchable by product name or SKU — used by the admin inventory page. */
+  async listVariants(event: H3Event, filters: VariantListFilters = {}) {
+    const db = useDb(event)
+    const page = Math.max(filters.page ?? 1, 1)
+    const pageSize = Math.min(Math.max(filters.pageSize ?? 20, 1), 100)
+
+    const conditions = []
+    if (filters.search) {
+      const term = `%${filters.search}%`
+      conditions.push(or(like(products.name, term), like(productVariants.sku, term))!)
+    }
+    const where = conditions.length ? and(...conditions) : undefined
+
+    const [rows, [{ count }]] = await Promise.all([
+      db.select({
+        variantId: productVariants.id,
+        sku: productVariants.sku,
+        price: productVariants.price,
+        stock: productVariants.stock,
+        imageUrl: productVariants.imageUrl,
+        isActive: productVariants.isActive,
+        productId: products.id,
+        productName: products.name,
+        productSlug: products.slug,
+        productStatus: products.status,
+        basePrice: products.basePrice,
+      })
+        .from(productVariants)
+        .innerJoin(products, eq(products.id, productVariants.productId))
+        .where(where)
+        .orderBy(asc(products.name), asc(productVariants.sku))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+      db.select({ count: sql<number>`count(*)` })
+        .from(productVariants)
+        .innerJoin(products, eq(products.id, productVariants.productId))
+        .where(where),
+    ])
+
+    if (!rows.length) return { rows: [], total: Number(count), page, pageSize }
+
+    const variantIds = rows.map(r => r.variantId)
+    const valueRows = await db.select({
+      variantId: variantAttributeValues.variantId,
+      attributeName: productAttributes.name,
+      value: productAttributeValues.value,
+    })
+      .from(variantAttributeValues)
+      .innerJoin(productAttributeValues, eq(productAttributeValues.id, variantAttributeValues.attributeValueId))
+      .innerJoin(productAttributes, eq(productAttributes.id, productAttributeValues.attributeId))
+      .where(inArray(variantAttributeValues.variantId, variantIds))
+
+    return {
+      rows: rows.map(r => ({
+        ...r,
+        attributes: valueRows.filter(v => v.variantId === r.variantId).map(v => ({ attributeName: v.attributeName, value: v.value })),
+      })),
+      total: Number(count),
+      page,
+      pageSize,
+    }
   },
 
   async lowStock(event: H3Event, threshold = 5) {

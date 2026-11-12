@@ -42,4 +42,55 @@ export const shippingService = {
 
     return { fee: match.rate.fee, freeShippingApplied: false }
   },
+
+  // --- Admin management (zones + rates) ---
+
+  async listZonesWithRates(event: H3Event) {
+    const [zones, rates] = await Promise.all([
+      shippingRepository.listZones(event),
+      shippingRepository.listRates(event),
+    ])
+    return zones.map(zone => ({
+      ...zone,
+      rates: rates.filter(r => r.zoneId === zone.id),
+    }))
+  },
+
+  async createZone(event: H3Event, input: { name: string, freeShippingThreshold?: number | null, isActive?: boolean }) {
+    const id = await shippingRepository.createZone(event, input)
+    return shippingRepository.findZoneById(event, id)
+  },
+
+  async updateZone(event: H3Event, id: string, input: Partial<{ name: string, freeShippingThreshold: number | null, isActive: boolean }>) {
+    const zone = await shippingRepository.findZoneById(event, id)
+    if (!zone) throw createError({ statusCode: 404, statusMessage: 'Shipping zone not found' })
+    await shippingRepository.updateZone(event, id, input)
+    return shippingRepository.findZoneById(event, id)
+  },
+
+  async removeZone(event: H3Event, id: string) {
+    const zone = await shippingRepository.findZoneById(event, id)
+    if (!zone) throw createError({ statusCode: 404, statusMessage: 'Shipping zone not found' })
+    await shippingRepository.removeZone(event, id)
+  },
+
+  async createRate(event: H3Event, input: { zoneId: string, city: string, fee: number, isActive?: boolean }) {
+    const zone = await shippingRepository.findZoneById(event, input.zoneId)
+    if (!zone) throw createError({ statusCode: 404, statusMessage: 'Shipping zone not found' })
+    const id = await shippingRepository.createRate(event, input)
+    return shippingRepository.findRateById(event, id)
+  },
+
+  async updateRate(event: H3Event, id: string, input: Partial<{ city: string, fee: number, isActive: boolean }>) {
+    const rate = await shippingRepository.findRateById(event, id)
+    if (!rate) throw createError({ statusCode: 404, statusMessage: 'Shipping rate not found' })
+    await shippingRepository.updateRate(event, id, input)
+    return shippingRepository.findRateById(event, id)
+  },
+
+  async removeRate(event: H3Event, id: string) {
+    const rate = await shippingRepository.findRateById(event, id)
+    if (!rate) throw createError({ statusCode: 404, statusMessage: 'Shipping rate not found' })
+    await shippingRepository.removeRate(event, id)
+  },
 }
