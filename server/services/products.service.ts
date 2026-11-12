@@ -66,6 +66,14 @@ export const productsService = {
       await productsRepository.setCategories(event, product.id, input.categoryIds)
     }
 
+    // Every product always has at least one variant so stock/inventory stays
+    // uniformly variant-based (see spec: "Track inventory by product
+    // variant"). Simple products just get one attribute-less "default"
+    // variant, invisible as a variant picker in the storefront, which
+    // variantsService transparently replaces once real attributed variants
+    // are added.
+    await variantsRepository.create(event, product.id, { sku: product.sku, stock: 0, isActive: true })
+
     return this.get(event, product.id)
   },
 

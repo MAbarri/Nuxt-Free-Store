@@ -8,6 +8,17 @@ const DEFAULTS = {
   logoUrl: null as string | null,
   accentColor: '#bb6540',
   defaultShippingFee: 500, // minor currency unit (cents)
+  hero: {
+    title: 'New season, quietly considered',
+    subtitle: 'Clothing made from natural fibers, designed to last beyond the season.',
+    imageUrl: null as string | null,
+    ctaLabel: 'Shop the collection',
+    ctaHref: '/products',
+  },
+  promo: {
+    title: 'Cash on delivery, everywhere we ship',
+    subtitle: 'Pay when your order arrives — no card required.',
+  },
 }
 
 export type StoreSettings = typeof DEFAULTS
