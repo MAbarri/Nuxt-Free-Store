@@ -40,4 +40,12 @@ export const settingsService = {
       .values({ key, value, updatedAt: now })
       .onConflictDoUpdate({ target: storeSettings.key, set: { value, updatedAt: now } })
   },
+
+  /** Admin-facing partial update — writes only the keys provided. */
+  async updateMany(event: H3Event, input: Partial<StoreSettings>): Promise<StoreSettings> {
+    for (const [key, value] of Object.entries(input)) {
+      await this.set(event, key as keyof StoreSettings, value)
+    }
+    return this.getPublicSettings(event)
+  },
 }
