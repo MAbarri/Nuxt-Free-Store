@@ -11,7 +11,7 @@ see them.
 
 ---
 
-## Current status: Phases 1–8 done, 9–11 remaining
+## Current status: Phases 1–10 done, settings page + Phase 11 remaining
 
 | Phase | Status |
 |---|---|
@@ -23,24 +23,32 @@ see them.
 | 6. Admin dashboard shell | ✅ Done |
 | 7. Order management | ✅ Done |
 | 8. Customer management | ✅ Done |
-| 9. Shipping configuration | ❌ Not started (backend read-path exists, no admin CRUD/UI) |
-| 10. Inventory management | ❌ Not started (core mechanics exist, no dedicated admin UI) |
+| 9. Shipping configuration | ✅ Done |
+| 10. Inventory management | ✅ Done |
 | 11. Testing, security review, deployment | ❌ Not started |
 
-**Plus two gaps noticed outside the 11-phase list, not yet built:**
-- Customer-facing auth pages (`/login`, `/register`, `/account` profile + order
-  history). The backend (`/api/auth/*`) is fully built and tested via curl,
-  but there is **no storefront UI** for a customer to register/log in — only
-  the admin login page exists (`/admin/login`). The header already links to
-  `/account`, which doesn't exist yet (404).
-- Store settings admin page (`/admin/settings`). `store_settings` currently
-  only has hardcoded defaults in `server/services/settings.service.ts` with
-  no admin UI to edit branding/hero/accent color/default shipping fee. The
-  admin sidebar already links to `/admin/settings`, which doesn't exist yet.
+**Decisions made on the two previously-identified gaps (user confirmed):**
+- **Customer-facing auth pages** (`/login`, `/register`, `/account`) are
+  **deliberately deferred** — not building these now, may revisit later. The
+  backend (`/api/auth/*`) still works and is tested via curl, there's just no
+  storefront UI for it.
+- **Wishlist** was **hidden, not removed**: the header heart icon/badge and
+  the product-detail-page "Add to wishlist" button were removed from
+  `app/components/StorefrontHeader.vue` and
+  `app/pages/products/[slug].vue`, since there's no login flow for users to
+  reliably keep a wishlist across sessions right now. The backend
+  (`/api/wishlist/*`, `wishlist.service.ts`), the `useWishlist` composable,
+  and the `/wishlist` page itself are **untouched** and still fully
+  functional if hit directly — re-enabling is just re-adding the two UI
+  entry points. The header's `/account` icon was removed too, for the same
+  reason (no account pages exist yet).
+- **Store settings admin page** (`/admin/settings`) is the **next thing to
+  build**, now that Phases 9–10 are done. `settingsService.set()` exists and
+  is unused — needs API routes + UI for branding/hero/accent
+  color/default shipping fee. The admin sidebar already links to
+  `/admin/settings`, which doesn't exist yet (404 today).
 
-Recommended order to continue: fold the two gaps in alongside Phase 9/10
-(store settings pairs naturally with shipping's "default shipping fee"
-concern; customer account pages pair naturally with customer management),
+Recommended order to continue: build the store settings admin page next,
 then do Phase 11 last.
 
 ---
@@ -272,39 +280,63 @@ but wasn't in the agreed Vitest-first testing strategy from SPEC.md).
 
 ## What's left — concrete next steps
 
-### Phase 9: Shipping configuration
-Backend already has `server/repositories/shipping.repository.ts` (zones +
-rates CRUD methods already written, just unused by any route yet) and
-`server/services/shipping.service.ts` (`calculateFee`, used by checkout).
-Need:
-- Zod schemas + admin API routes: `POST/PUT/DELETE` for zones and rates
-  under `server/api/admin/shipping/...`
-- Admin UI `/admin/shipping`: list zones, create/edit (name, free-shipping
-  threshold, active toggle), manage rates within a zone (city, fee, active
-  toggle)
+### Phase 9: Shipping configuration — ✅ done
+Admin CRUD built on top of the pre-existing repository/service:
+- `server/schemas/shipping.schema.ts` — zone/rate create & update validation
+- Routes under `server/api/admin/shipping/`: `zones/index.{get,post}.ts`,
+  `zones/[id].{put,delete}.ts`, `rates/index.post.ts`, `rates/[id].{put,delete}.ts`
+- `shippingService` gained admin methods: `listZonesWithRates`, `createZone`,
+  `updateZone`, `removeZone`, `createRate`, `updateRate`, `removeRate` (each
+  404s on an unknown id); `shippingRepository` gained `findRateById`
+- Admin UI `/admin/shipping`: zone cards (name, free-shipping threshold,
+  active toggle, edit/delete) each with a nested rates table (city, fee,
+  active toggle, edit/delete) and an "Add city rate" action
+- Verified end-to-end via curl: create/list/update/toggle/delete zone and
+  rate, 404 on unknown zone id, 401 when not authenticated, zone delete
+  cascades its rates (FK `onDelete: cascade`)
 
-### Phase 10: Inventory management
-Backend already has everything in `inventoryService` (adjustStock, history,
-lowStock) and an existing API route
-(`server/api/admin/inventory/adjustments.post.ts`,
-`low-stock.get.ts`, `variants/[variantId]/history.get.ts`). Need:
-- A route to list **all** variants (not just low-stock ones), with product
-  name/sku/search, probably `server/api/admin/inventory/index.get.ts`
-- Admin UI `/admin/inventory`: searchable table of all variants with stock,
-  quick adjust action (reuse the modal pattern from
-  `app/pages/admin/products/[id].vue`), and a way to view a variant's full
-  adjustment history
+### Phase 10: Inventory management — ✅ done
+- `inventoryService.listVariants(event, { search, page, pageSize })` — joins
+  `product_variants` → `products`, plus a second query to attach each
+  variant's attribute values (same join pattern as
+  `variantsRepository.listByProduct`), paginated, searchable by product name
+  or SKU
+- `inventoryListQuerySchema` in `server/schemas/inventory.schema.ts`
+- Route: `server/api/admin/inventory/index.get.ts` (the existing
+  `adjustments.post.ts`, `low-stock.get.ts`, and
+  `variants/[variantId]/history.get.ts` routes were already there and
+  unchanged)
+- Admin UI `/admin/inventory`: paginated/searchable table of every variant
+  across the catalog (product name links to its admin product page, SKU,
+  attributes, price, stock badge color-coded by level, active state), an
+  "adjust stock" modal (reused pattern from the product detail page), and a
+  "history" modal listing all adjustments for that variant
+- Verified end-to-end via curl: list/search, stock adjustment through the
+  new page's endpoint, history reflects the adjustment, SSR page loads
 
-### Two gaps (recommended to do alongside 9/10)
-- **Customer auth pages**: `/login`, `/register` (simple forms posting to
-  the already-working `/api/auth/login`/`/api/auth/register`), `/account`
-  (profile info + order history, reusing patterns from
-  `app/pages/admin/customers/[id].vue` but customer-facing/read-mostly), a
-  logout action, and a route middleware for protecting `/account/*`
-  (customer-equivalent of `app/middleware/admin.ts`).
-- **Store settings admin page**: `/admin/settings` + API routes using
-  `settingsService.set()` (already exists, just unused) to edit storeName,
-  tagline, logoUrl, accentColor, defaultShippingFee, hero.*, promo.* fields.
+### Wishlist / account — hidden, not removed (user decision)
+- Removed from `app/components/StorefrontHeader.vue`: the wishlist heart
+  icon/badge and the `/account` user icon
+- Removed from `app/pages/products/[slug].vue`: the "add to wishlist" heart
+  button and its `toggleWishlist`/`wishlisted` logic
+- Left completely untouched: `/api/wishlist/*`, `wishlist.service.ts`,
+  `wishlist.repository.ts`, the `useWishlist` composable, and the
+  `/wishlist` page (still reachable directly, confirmed `200` via curl) — if
+  customer accounts are built later, re-enabling wishlist is just re-adding
+  those two UI entry points
+- Customer-facing auth pages (`/login`, `/register`, `/account`) remain
+  **not built**, by explicit user decision, not a gap to fix next
+
+### Next up: Store settings admin page (not yet started)
+- `settingsService.set()` already exists in
+  `server/services/settings.service.ts`, unused by any route
+- Needs: admin API routes (`GET`/`PUT` likely at
+  `server/api/admin/settings.get.ts` / `.put.ts`) + an `/admin/settings` page
+  to edit storeName, tagline, logoUrl, accentColor, defaultShippingFee,
+  hero.* and promo.* fields — check `settings.service.ts` and
+  `server/database/schema/settings.ts` for the exact field list before
+  starting
+- The admin sidebar already links to `/admin/settings` (currently 404)
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further
@@ -315,6 +347,7 @@ lowStock) and an existing API route
   in API responses
 - Real Cloudflare deployment (see `docs/DEPLOYMENT.md`, already written in
   Phase 1): `wrangler login`, create real D1/R2/KV resources, update
+
   `wrangler.jsonc` placeholders with real IDs, `pnpm db:migrate:remote`,
   connect Cloudflare Workers Builds to the GitHub repo for auto-deploy. This
   needs the user's Cloudflare account — not yet done, `wrangler whoami`
