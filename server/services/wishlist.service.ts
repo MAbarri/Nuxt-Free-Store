@@ -1,18 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { createError, type H3Event } from 'h3'
 import { wishlistRepository } from '../repositories/wishlist.repository'
-import { usersRepository } from '../repositories/users.repository'
-import { getAuthUser } from '../utils/session'
+import { resolveCustomerProfileId } from '../utils/customer'
 import { getGuestToken, getOrCreateGuestToken } from '../utils/guestToken'
 import { useDb } from '../utils/db'
 import { products, productImages } from '../database/schema'
-
-async function resolveCustomerProfileId(event: H3Event): Promise<string | null> {
-  const user = await getAuthUser(event)
-  if (!user) return null
-  const profile = await usersRepository.findCustomerProfileByUserId(event, user.id)
-  return profile?.id ?? null
-}
 
 async function findExistingWishlist(event: H3Event) {
   const customerProfileId = await resolveCustomerProfileId(event)

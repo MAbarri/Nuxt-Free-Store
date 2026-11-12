@@ -1,18 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { createError, type H3Event } from 'h3'
 import { cartRepository } from '../repositories/cart.repository'
-import { usersRepository } from '../repositories/users.repository'
-import { getAuthUser } from '../utils/session'
+import { resolveCustomerProfileId } from '../utils/customer'
 import { getGuestToken, getOrCreateGuestToken } from '../utils/guestToken'
 import { useDb } from '../utils/db'
-import { products, productVariants } from '../database/schema'
-
-async function resolveCustomerProfileId(event: H3Event): Promise<string | null> {
-  const user = await getAuthUser(event)
-  if (!user) return null
-  const profile = await usersRepository.findCustomerProfileByUserId(event, user.id)
-  return profile?.id ?? null
-}
+import { products, productVariants, variantAttributeValues, productAttributeValues, productAttributes } from '../database/schema'
 
 async function findExistingCart(event: H3Event) {
   const customerProfileId = await resolveCustomerProfileId(event)
@@ -40,6 +32,18 @@ async function getOrCreateCart(event: H3Event) {
   const created = await cartRepository.findById(event, id)
   if (!created) throw createError({ statusCode: 500, statusMessage: 'Failed to create cart' })
   return created
+}
+
+async function buildVariantLabel(event: H3Event, variantId: string | null): Promise<string | null> {
+  if (!variantId) return null
+  const db = useDb(event)
+  const rows = await db.select({ name: productAttributes.name, value: productAttributeValues.value })
+    .from(variantAttributeValues)
+    .innerJoin(productAttributeValues, eq(productAttributeValues.id, variantAttributeValues.attributeValueId))
+    .innerJoin(productAttributes, eq(productAttributes.id, productAttributeValues.attributeId))
+    .where(eq(variantAttributeValues.variantId, variantId))
+  if (!rows.length) return null
+  return rows.map(r => `${r.name}: ${r.value}`).join(' / ')
 }
 
 /**
@@ -72,6 +76,7 @@ async function hydrate(event: H3Event, cartId: string) {
       productName: product?.name ?? 'No longer available',
       productSlug: product?.slug ?? null,
       sku: variant?.sku ?? product?.sku ?? null,
+      variantLabel: await buildVariantLabel(event, item.variantId),
       imageUrl: variant?.imageUrl ?? null,
       quantity: item.quantity,
       available,
