@@ -2,6 +2,8 @@ import { createError, type H3Event } from 'h3'
 import { usersRepository } from '../repositories/users.repository'
 import { hashPassword, verifyPassword } from '../utils/password'
 import { createSession, destroySession } from '../utils/session'
+import { cartService } from './cart.service'
+import { wishlistService } from './wishlist.service'
 
 export interface RegisterInput {
   email: string
@@ -13,6 +15,13 @@ export interface RegisterInput {
 export interface LoginInput {
   email: string
   password: string
+}
+
+async function mergeGuestData(event: H3Event, userId: string) {
+  const profile = await usersRepository.findCustomerProfileByUserId(event, userId)
+  if (!profile) return
+  await cartService.mergeGuestCartIntoCustomer(event, profile.id)
+  await wishlistService.mergeGuestWishlistIntoCustomer(event, profile.id)
 }
 
 export const authService = {
@@ -35,6 +44,7 @@ export const authService = {
     }
 
     await createSession(event, user.id)
+    await mergeGuestData(event, user.id)
     return sanitizeUser(user)
   },
 
@@ -50,6 +60,7 @@ export const authService = {
     }
 
     await createSession(event, user.id)
+    await mergeGuestData(event, user.id)
     return sanitizeUser(user)
   },
 

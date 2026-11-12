@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { data: me, refresh } = await useAsyncData('admin-me', () => $fetch('/api/auth/me'))
+const { data: me, refresh } = await useFetch('/api/auth/me', { key: 'admin-topbar-me' })
 
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })

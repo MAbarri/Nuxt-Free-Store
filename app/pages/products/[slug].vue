@@ -61,16 +61,16 @@ function formatPrice(cents: number) {
   return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
 }
 
+const { addItem: addCartItem } = useCart()
+const { wishlist, refresh: refreshWishlist, addItem: addWishlistItem, removeItem: removeWishlistItem, isWishlisted } = useWishlist()
+await useAsyncData('wishlist-init', refreshWishlist)
+
 async function addToCart() {
   if (!selectedVariant.value || !product.value) return
   adding.value = true
   try {
-    await apiFetch('/api/cart/items', {
-      method: 'POST',
-      body: { productId: product.value.id, variantId: selectedVariant.value.id, quantity: quantity.value },
-    })
+    await addCartItem(product.value.id, selectedVariant.value.id, quantity.value)
     toast.add({ title: 'Added to cart', color: 'success' })
-    await refreshNuxtData('cart')
   }
   catch (e) {
     toast.add({ title: 'Could not add to cart', description: apiErrorMessage(e), color: 'error' })
@@ -80,17 +80,16 @@ async function addToCart() {
   }
 }
 
-const wishlisted = ref(false)
+const wishlisted = computed(() => (product.value ? isWishlisted(product.value.id) : false))
 async function toggleWishlist() {
   if (!product.value) return
   try {
     if (wishlisted.value) {
-      await apiFetch(`/api/wishlist/items/${product.value.id}`, { method: 'DELETE' })
+      await removeWishlistItem(product.value.id)
     }
     else {
-      await apiFetch('/api/wishlist/items', { method: 'POST', body: { productId: product.value.id } })
+      await addWishlistItem(product.value.id)
     }
-    wishlisted.value = !wishlisted.value
   }
   catch (e) {
     toast.add({ title: 'Could not update wishlist', description: apiErrorMessage(e), color: 'error' })
