@@ -8,6 +8,10 @@ export default defineNuxtConfig({
 
   modules: ['@nuxt/ui'],
 
+  ui: {
+    colorMode: false,
+  },
+
   css: ['~/assets/css/main.css'],
 
   devtools: { enabled: true },
