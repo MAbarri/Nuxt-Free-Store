@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, gte, like, lte, or, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { orders, orderItems, orderStatusHistory } from '../database/schema'
 import { useDb } from '../utils/db'
@@ -108,4 +108,73 @@ export const ordersRepository = {
       .where(eq(orderStatusHistory.orderId, orderId))
       .orderBy(desc(orderStatusHistory.createdAt))
   },
+
+  async list(event: H3Event, filters: OrderListFilters = {}) {
+    const db = useDb(event)
+    const page = Math.max(filters.page ?? 1, 1)
+    const pageSize = Math.min(Math.max(filters.pageSize ?? 20, 1), 100)
+
+    const conditions = []
+    if (filters.search) {
+      const term = `%${filters.search}%`
+      conditions.push(or(
+        like(orders.orderNumber, term),
+        like(orders.customerName, term),
+        like(orders.customerPhone, term),
+      ))
+    }
+    if (filters.status) conditions.push(eq(orders.status, filters.status))
+    if (filters.dateFrom) conditions.push(gte(orders.createdAt, filters.dateFrom))
+    if (filters.dateTo) conditions.push(lte(orders.createdAt, filters.dateTo))
+
+    const where = conditions.length ? and(...conditions) : undefined
+
+    const [rows, [{ count }]] = await Promise.all([
+      db.select().from(orders).where(where)
+        .orderBy(desc(orders.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+      db.select({ count: sql<number>`count(*)` }).from(orders).where(where),
+    ])
+
+    return { rows, total: Number(count), page, pageSize }
+  },
+
+  async update(event: H3Event, id: string, fields: Partial<{
+    status: typeof orders.$inferSelect['status']
+    paymentStatus: typeof orders.$inferSelect['paymentStatus']
+    internalNotes: string | null
+    trackingReference: string | null
+  }>) {
+    const db = useDb(event)
+    await db.update(orders).set({ ...fields, updatedAt: new Date() }).where(eq(orders.id, id))
+  },
+
+  async addStatusHistory(event: H3Event, input: {
+    orderId: string
+    fromStatus: typeof orders.$inferSelect['status'] | null
+    toStatus: typeof orders.$inferSelect['status']
+    note?: string | null
+    createdByUserId?: string | null
+  }) {
+    const db = useDb(event)
+    await db.insert(orderStatusHistory).values({
+      id: generateId('oshist'),
+      orderId: input.orderId,
+      fromStatus: input.fromStatus,
+      toStatus: input.toStatus,
+      note: input.note ?? null,
+      createdByUserId: input.createdByUserId ?? null,
+      createdAt: new Date(),
+    })
+  },
+}
+
+export interface OrderListFilters {
+  search?: string
+  status?: typeof orders.$inferSelect['status']
+  dateFrom?: Date
+  dateTo?: Date
+  page?: number
+  pageSize?: number
 }
