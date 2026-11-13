@@ -13,7 +13,7 @@ interface OrderRow {
 }
 
 const statusOptions = [
-  { label: 'All statuses', value: '' },
+  { label: 'All statuses', value: 'all' },
   { label: 'Pending confirmation', value: 'pending_confirmation' },
   { label: 'Confirmed', value: 'confirmed' },
   { label: 'Processing', value: 'processing' },
@@ -45,6 +45,13 @@ const status = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
 const loading = ref(true)
+
+// USelect can't have an item with value: '' (reserved for "no selection"),
+// so "All statuses" uses an 'all' sentinel here and is translated back to '' for the filter.
+const statusSelectValue = computed({
+  get: () => status.value || 'all',
+  set: (v: string) => { status.value = v === 'all' ? '' : v },
+})
 
 async function load() {
   loading.value = true
@@ -86,7 +93,7 @@ onMounted(load)
 
     <div class="mt-4 flex flex-wrap items-end gap-3">
       <UInput v-model="search" placeholder="Search by reference, name or phone…" icon="i-lucide-search" @keyup.enter="load" />
-      <USelect v-model="status" :items="statusOptions" />
+      <USelect v-model="statusSelectValue" :items="statusOptions" />
       <UFormField label="From">
         <UInput v-model="dateFrom" type="date" @change="load" />
       </UFormField>

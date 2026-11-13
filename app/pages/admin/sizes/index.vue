@@ -19,6 +19,13 @@ const editing = ref<SizeGuide | null>(null)
 const form = reactive({ title: '', categoryId: '', columnsCsv: 'Size,Chest,Waist', rowsText: 'S,34,28\nM,36,30\nL,38,32' })
 const saving = ref(false)
 
+// USelect can't have an item with value: '' (reserved for "no selection"),
+// so "None" uses a 'none' sentinel here and is translated back to '' on the form.
+const categoryIdSelectValue = computed({
+  get: () => form.categoryId || 'none',
+  set: (v: string) => { form.categoryId = v === 'none' ? '' : v },
+})
+
 async function load() {
   loading.value = true
   try {
@@ -134,8 +141,8 @@ onMounted(load)
           <UFormField label="Title"><UInput v-model="form.title" required class="w-full" /></UFormField>
           <UFormField label="Category">
             <USelect
-              v-model="form.categoryId"
-              :items="[{ label: 'None', value: '' }, ...categories.map(c => ({ label: c.name, value: c.id }))]"
+              v-model="categoryIdSelectValue"
+              :items="[{ label: 'None', value: 'none' }, ...categories.map(c => ({ label: c.name, value: c.id }))]"
             />
           </UFormField>
           <UFormField label="Columns (comma separated)">

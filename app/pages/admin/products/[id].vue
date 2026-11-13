@@ -78,6 +78,13 @@ const form = reactive({
   landingBlocks: [] as LandingBlock[],
 })
 
+// USelect can't have an item with value: '' (reserved for "no selection"),
+// so "None" uses a 'none' sentinel here and is translated back to '' on the form.
+const sizeGuideSelectValue = computed({
+  get: () => form.sizeGuideId || 'none',
+  set: (v: string) => { form.sizeGuideId = v === 'none' ? '' : v },
+})
+
 // --- Translations (English/Arabic — French is the form above) ---
 type TranslatableLocale = 'en' | 'ar'
 const LOCALE_LABELS: Record<TranslatableLocale, string> = { en: 'English', ar: 'Arabic' }
@@ -710,8 +717,8 @@ onMounted(load)
 
           <UFormField label="Size guide">
             <USelect
-              v-model="form.sizeGuideId"
-              :items="[{ label: 'None', value: '' }, ...sizeGuides.map(g => ({ label: g.title, value: g.id }))]"
+              v-model="sizeGuideSelectValue"
+              :items="[{ label: 'None', value: 'none' }, ...sizeGuides.map(g => ({ label: g.title, value: g.id }))]"
             />
           </UFormField>
 
@@ -1082,8 +1089,9 @@ onMounted(load)
           <UFormField label="Initial stock"><UInputNumber v-model="variantForm.stock" :min="0" class="w-full" /></UFormField>
           <UFormField v-for="attr in attributes" :key="attr.id" :label="attr.name">
             <USelect
-              v-model="variantForm.selectedValues[attr.id]"
-              :items="[{ label: 'None', value: '' }, ...attr.values.map(v => ({ label: v.value, value: v.id }))]"
+              :model-value="variantForm.selectedValues[attr.id] || 'none'"
+              :items="[{ label: 'None', value: 'none' }, ...attr.values.map(v => ({ label: v.value, value: v.id }))]"
+              @update:model-value="(v) => variantForm.selectedValues[attr.id] = v === 'none' ? '' : v"
             />
           </UFormField>
           <UCheckbox v-model="variantForm.isActive" label="Active" />

@@ -20,6 +20,13 @@ const search = ref('')
 const status = ref<string>('')
 const loading = ref(true)
 
+// USelect can't have an item with value: '' (reserved for "no selection"),
+// so "All statuses" uses an 'all' sentinel here and is translated back to '' for the filter.
+const statusSelectValue = computed({
+  get: () => status.value || 'all',
+  set: (v: string) => { status.value = v === 'all' ? '' : v },
+})
+
 async function load() {
   loading.value = true
   try {
@@ -133,8 +140,8 @@ onMounted(load)
     <div class="mt-4 flex flex-wrap items-end gap-3">
       <UInput v-model="search" placeholder="Search by name…" icon="i-lucide-search" @keyup.enter="load" />
       <USelect
-        v-model="status"
-        :items="[{ label: 'All statuses', value: '' }, { label: 'Draft', value: 'draft' }, { label: 'Active', value: 'active' }, { label: 'Archived', value: 'archived' }]"
+        v-model="statusSelectValue"
+        :items="[{ label: 'All statuses', value: 'all' }, { label: 'Draft', value: 'draft' }, { label: 'Active', value: 'active' }, { label: 'Archived', value: 'archived' }]"
       />
       <UButton variant="soft" @click="load">Search</UButton>
     </div>

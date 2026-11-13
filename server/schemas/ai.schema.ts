@@ -55,7 +55,7 @@ export const aiProductCreateSchema = z.object({
   categoryIds: z.array(z.string().trim()).default([]),
   referenceImageDataUrl: dataUrlSchema,
   includeReferenceImage: z.boolean().default(true),
-  generatedImageDataUrls: z.array(dataUrlSchema).max(4).default([]),
+  generatedImageDataUrls: z.array(dataUrlSchema).max(6).default([]),
   layoutStyle: z.enum(['standard', 'landing']).default('landing'),
   landingBenefits: z.array(aiLandingBenefitSchema).max(6).optional().nullable(),
   landingBlocks: z.array(z.object({

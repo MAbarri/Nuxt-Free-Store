@@ -6,7 +6,7 @@ import { validateBody } from '../../../../utils/validate'
 import { productsService } from '../../../../services/products.service'
 
 const schema = z.object({
-  imageDataUrls: z.array(z.string().trim().regex(/^data:image\/(png|jpe?g|webp);base64,/)).min(1).max(4),
+  imageDataUrls: z.array(z.string().trim().regex(/^data:image\/(png|jpe?g|webp);base64,/)).min(1).max(6),
 })
 
 /** Persists admin-reviewed AI-generated photos (see /api/admin/ai/product-images) into an existing product's gallery. */

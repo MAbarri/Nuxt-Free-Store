@@ -25,6 +25,13 @@ const form = reactive({ name: '', description: '', parentId: '', isActive: true,
 const saving = ref(false)
 const uploadingImage = ref(false)
 
+// USelect can't have an item with value: '' (reserved for "no selection"),
+// so "None" uses a 'none' sentinel here and is translated back to '' on the form.
+const parentIdSelectValue = computed({
+  get: () => form.parentId || 'none',
+  set: (v: string) => { form.parentId = v === 'none' ? '' : v },
+})
+
 const activeLocale = ref<TranslatableLocale>('en')
 const translating = ref<TranslatableLocale | null>(null)
 const savingTranslation = ref<TranslatableLocale | null>(null)
@@ -312,8 +319,8 @@ onMounted(load)
           </UFormField>
           <UFormField label="Parent category">
             <USelect
-              v-model="form.parentId"
-              :items="[{ label: 'None', value: '' }, ...parentOptions]"
+              v-model="parentIdSelectValue"
+              :items="[{ label: 'None', value: 'none' }, ...parentOptions]"
               class="w-full"
             />
           </UFormField>
