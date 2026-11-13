@@ -16,7 +16,17 @@ export type TranslatableLocale = 'en' | 'ar'
  * consistent with "no browser auto-detection" elsewhere in the app.
  */
 export function resolveLocaleFromEvent(event: H3Event): CatalogLocale {
-  const raw = getCookie(event, 'store_locale')
+  // Defensive: some call sites (e.g. unit tests constructing a bare event,
+  // or server-to-server calls without a real HTTP request) don't have a
+  // readable cookie jar. Falling back to French here is always safe and
+  // matches "no locale detection, French by default" everywhere else.
+  let raw: string | undefined
+  try {
+    raw = getCookie(event, 'store_locale')
+  }
+  catch {
+    raw = undefined
+  }
   return raw === 'en' || raw === 'ar' ? raw : 'fr'
 }
 

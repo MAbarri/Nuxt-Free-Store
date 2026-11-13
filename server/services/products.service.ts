@@ -3,8 +3,8 @@ import { productsRepository, type ProductInput } from '../repositories/products.
 import { variantsRepository } from '../repositories/variants.repository'
 import { productTranslationsRepository } from '../repositories/productTranslations.repository'
 import { slugify, withUniqueSuffix } from '../utils/slug'
-import { deleteImageFromR2, r2KeyFromUrl } from '../utils/media'
-import { translateProductContent } from '../utils/openrouter'
+import { deleteImageFromR2, r2KeyFromUrl, uploadImageToR2, dataUrlToBytes } from '../utils/media'
+import { translateProductContent, generateProductSeo } from '../utils/openrouter'
 import type { TranslatableLocale } from '../utils/locale'
 
 async function uniqueSlug(event: H3Event, base: string, ignoreId?: string): Promise<string> {
@@ -191,5 +191,25 @@ export const productsService = {
     }
 
     return { translations, cost }
+  },
+
+  /** Writes French SEO title/description from the product's existing name/description. Saves immediately, still editable afterward. */
+  async aiGenerateSeo(event: H3Event, id: string) {
+    const product = await this.get(event, id)
+    const { data, cost } = await generateProductSeo(event, { name: product.name, description: product.description })
+    await productsRepository.update(event, id, { seoTitle: data.seoTitle, seoDescription: data.seoDescription })
+    return { ...data, cost }
+  },
+
+  /** Appends AI-generated photos (already reviewed by the admin) to an existing product's gallery. */
+  async addGeneratedImages(event: H3Event, id: string, imageDataUrls: string[]) {
+    await this.get(event, id)
+    for (const dataUrl of imageDataUrls) {
+      const { data, contentType } = dataUrlToBytes(dataUrl)
+      const { url } = await uploadImageToR2(event, { data, contentType, folder: `products/${id}` })
+      const existing = await productsRepository.listImages(event, id)
+      await productsRepository.addImage(event, id, { url, sortOrder: existing.length })
+    }
+    return this.get(event, id)
   },
 }

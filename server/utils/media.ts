@@ -51,3 +51,14 @@ export function r2KeyFromUrl(url: string): string | null {
   const match = url.match(/^\/media\/(.+)$/)
   return match ? match[1] : null
 }
+
+/** Decodes a `data:<mime>;base64,<bytes>` URL (e.g. AI-generated images) into raw bytes + content type. */
+export function dataUrlToBytes(dataUrl: string): { data: Uint8Array, contentType: string } {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
+  if (!match) throw createError({ statusCode: 422, statusMessage: 'Invalid image data URL' })
+  const [, contentType, base64] = match
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return { data: bytes, contentType }
+}

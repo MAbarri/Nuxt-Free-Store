@@ -4,5 +4,5 @@ import { settingsService } from '../../services/settings.service'
 
 export default defineApiHandler(async (event) => {
   await requireAdmin(event)
-  return settingsService.getPublicSettings(event)
+  return settingsService.getAdminSettings(event)
 })

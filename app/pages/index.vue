@@ -1,9 +1,15 @@
 <script setup lang="ts">
 const { t } = useI18n()
-useHead({ title: 'Atelier Élégance — Thoughtfully made clothing' })
 
 const { data: settingsRes } = await useAsyncData('home-settings', () => apiFetch<any>('/api/store-settings'))
 const settings = computed(() => settingsRes.value)
+
+useSeoMeta({
+  title: () => settings.value ? `${settings.value.storeName} — ${settings.value.tagline}` : 'Atelier Élégance',
+  description: () => settings.value?.tagline,
+  ogTitle: () => settings.value?.storeName,
+  ogDescription: () => settings.value?.tagline,
+})
 
 const { data: featuredRes, pending: featuredLoading } = await useAsyncData('home-featured', () =>
   apiFetch<{ rows: any[] }>('/api/products', { query: { featured: true, pageSize: 4 } }))

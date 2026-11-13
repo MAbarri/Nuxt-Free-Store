@@ -4,6 +4,13 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 interface Hero { title: string, subtitle: string, imageUrl: string | null, ctaLabel: string, ctaHref: string }
 interface Promo { title: string, subtitle: string }
 interface TrustBadge { icon?: string, label: string }
+interface SettingsTranslation {
+  tagline?: string | null
+  announcementBar?: string | null
+  hero?: { title?: string | null, subtitle?: string | null, ctaLabel?: string | null } | null
+  promo?: { title?: string | null, subtitle?: string | null } | null
+  trustBadges?: Array<{ label: string | null }> | null
+}
 interface Settings {
   storeName: string
   tagline: string
@@ -14,7 +21,11 @@ interface Settings {
   hero: Hero
   promo: Promo
   trustBadges: TrustBadge[]
+  translations?: Partial<Record<'en' | 'ar', SettingsTranslation | null>>
 }
+
+type TranslatableLocale = 'en' | 'ar'
+const LOCALE_LABELS: Record<TranslatableLocale, string> = { en: 'English', ar: 'Arabic' }
 
 const toast = useToast()
 const loading = ref(true)
@@ -32,6 +43,43 @@ const form = reactive({
   trustBadges: [] as TrustBadge[],
 })
 
+// --- Translations (English/Arabic — French is the form above) ---
+const activeLocale = ref<TranslatableLocale>('en')
+const generatingCopy = ref(false)
+const translating = ref<TranslatableLocale | null>(null)
+const savingTranslation = ref<TranslatableLocale | null>(null)
+
+interface TranslationForm {
+  tagline: string
+  announcementBar: string
+  heroTitle: string
+  heroSubtitle: string
+  heroCtaLabel: string
+  promoTitle: string
+  promoSubtitle: string
+  trustBadgeLabels: string[]
+}
+function emptyTranslationForm(): TranslationForm {
+  return { tagline: '', announcementBar: '', heroTitle: '', heroSubtitle: '', heroCtaLabel: '', promoTitle: '', promoSubtitle: '', trustBadgeLabels: [] }
+}
+const translationForms = reactive<Record<TranslatableLocale, TranslationForm>>({
+  en: emptyTranslationForm(),
+  ar: emptyTranslationForm(),
+})
+
+function applyTranslationToForm(locale: TranslatableLocale, t: SettingsTranslation | null | undefined) {
+  translationForms[locale] = {
+    tagline: t?.tagline ?? '',
+    announcementBar: t?.announcementBar ?? '',
+    heroTitle: t?.hero?.title ?? '',
+    heroSubtitle: t?.hero?.subtitle ?? '',
+    heroCtaLabel: t?.hero?.ctaLabel ?? '',
+    promoTitle: t?.promo?.title ?? '',
+    promoSubtitle: t?.promo?.subtitle ?? '',
+    trustBadgeLabels: t?.trustBadges ? t.trustBadges.map(b => b?.label ?? '') : [],
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -45,6 +93,9 @@ async function load() {
     form.hero = { ...settings.hero }
     form.promo = { ...settings.promo }
     form.trustBadges = settings.trustBadges.map(b => ({ ...b }))
+
+    applyTranslationToForm('en', settings.translations?.en)
+    applyTranslationToForm('ar', settings.translations?.ar)
   }
   catch (e) {
     toast.add({ title: 'Failed to load settings', description: apiErrorMessage(e), color: 'error' })
@@ -131,6 +182,68 @@ function removeTrustBadge(index: number) {
   form.trustBadges.splice(index, 1)
 }
 
+async function aiGenerateFrenchCopy() {
+  if (!confirm('Replace the current French homepage copy (tagline, hero, promo, trust badges) with freshly AI-written copy? This saves immediately — you can still edit it afterward.')) return
+  generatingCopy.value = true
+  try {
+    const result = await apiFetch<{ settings: Settings, cost: number }>('/api/admin/settings/ai-generate-copy', { method: 'POST', body: {} })
+    form.tagline = result.settings.tagline
+    form.announcementBar = result.settings.announcementBar ?? ''
+    form.hero = { ...result.settings.hero }
+    form.promo = { ...result.settings.promo }
+    form.trustBadges = result.settings.trustBadges.map(b => ({ ...b }))
+    toast.add({ title: 'Homepage copy generated', description: `AI cost: $${result.cost.toFixed(4)} — review and adjust as needed`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Generation failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    generatingCopy.value = false
+  }
+}
+
+async function aiTranslateLocale(locale: TranslatableLocale) {
+  translating.value = locale
+  try {
+    const result = await apiFetch<{ translations: Record<string, SettingsTranslation>, cost: number }>(
+      '/api/admin/settings/ai-translate',
+      { method: 'POST', body: { locales: [locale] } },
+    )
+    applyTranslationToForm(locale, result.translations[locale])
+    toast.add({ title: `Translated into ${LOCALE_LABELS[locale]}`, description: `AI cost: $${result.cost.toFixed(4)} — review before saving`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Translation failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    translating.value = null
+  }
+}
+
+async function saveTranslation(locale: TranslatableLocale) {
+  savingTranslation.value = locale
+  try {
+    const f = translationForms[locale]
+    await apiFetch(`/api/admin/settings/translations/${locale}`, {
+      method: 'PUT',
+      body: {
+        tagline: f.tagline || null,
+        announcementBar: f.announcementBar || null,
+        hero: { title: f.heroTitle || null, subtitle: f.heroSubtitle || null, ctaLabel: f.heroCtaLabel || null },
+        promo: { title: f.promoTitle || null, subtitle: f.promoSubtitle || null },
+        trustBadges: f.trustBadgeLabels.length ? f.trustBadgeLabels.map(label => ({ label: label || null })) : null,
+      },
+    })
+    toast.add({ title: `${LOCALE_LABELS[locale]} translation saved`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save translation', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    savingTranslation.value = null
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -181,7 +294,18 @@ onMounted(load)
       </UCard>
 
       <UCard class="lg:col-span-2">
-        <template #header><p class="font-medium">Homepage hero</p></template>
+        <template #header>
+          <div class="flex items-center justify-between">
+            <p class="font-medium">Homepage hero</p>
+            <UButton size="xs" variant="soft" icon="i-lucide-sparkles" :loading="generatingCopy" @click="aiGenerateFrenchCopy">
+              Generate French copy with AI
+            </UButton>
+          </div>
+        </template>
+        <p class="mb-4 text-sm text-stone-500">
+          "Generate French copy" rewrites the tagline, announcement bar, hero, promo banner, and
+          trust badge labels below all at once — review and adjust before your visitors see it.
+        </p>
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-4">
             <UFormField label="Title"><UInput v-model="form.hero.title" class="w-full" /></UFormField>
@@ -233,6 +357,61 @@ onMounted(load)
           <UInput v-model="badge.icon" placeholder="◇" class="w-16" />
           <UInput v-model="badge.label" placeholder="Cash on delivery" class="w-full" />
           <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeTrustBadge(i)" />
+        </div>
+      </UCard>
+
+      <UCard class="lg:col-span-2">
+        <template #header><p class="font-medium">Translations</p></template>
+        <p class="text-sm text-stone-500">
+          French uses the fields above. Generate English/Arabic with AI, review it, then save —
+          visitors browsing in that language see this instead of the French version.
+        </p>
+
+        <div class="mt-4 flex gap-2">
+          <UButton
+            v-for="locale in (['en', 'ar'] as const)" :key="locale"
+            size="xs" :variant="activeLocale === locale ? 'solid' : 'soft'"
+            @click="activeLocale = locale"
+          >
+            {{ LOCALE_LABELS[locale] }}
+          </UButton>
+        </div>
+
+        <div class="mt-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-medium">{{ LOCALE_LABELS[activeLocale] }} content</p>
+            <UButton
+              size="xs" variant="soft" icon="i-lucide-sparkles"
+              :loading="translating === activeLocale"
+              @click="aiTranslateLocale(activeLocale)"
+            >
+              Translate from French
+            </UButton>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <UFormField label="Tagline"><UInput v-model="translationForms[activeLocale].tagline" class="w-full" /></UFormField>
+            <UFormField label="Announcement bar"><UInput v-model="translationForms[activeLocale].announcementBar" class="w-full" /></UFormField>
+            <UFormField label="Hero title"><UInput v-model="translationForms[activeLocale].heroTitle" class="w-full" /></UFormField>
+            <UFormField label="Hero CTA label"><UInput v-model="translationForms[activeLocale].heroCtaLabel" class="w-full" /></UFormField>
+            <UFormField label="Hero subtitle" class="md:col-span-2"><UTextarea v-model="translationForms[activeLocale].heroSubtitle" class="w-full" /></UFormField>
+            <UFormField label="Promo title"><UInput v-model="translationForms[activeLocale].promoTitle" class="w-full" /></UFormField>
+            <UFormField label="Promo subtitle"><UInput v-model="translationForms[activeLocale].promoSubtitle" class="w-full" /></UFormField>
+          </div>
+
+          <div>
+            <p class="text-sm font-medium">Trust badge labels</p>
+            <div v-for="(badge, i) in form.trustBadges" :key="i" class="mt-2 flex items-center gap-2">
+              <span class="w-8 shrink-0 text-center">{{ badge.icon }}</span>
+              <UInput v-model="translationForms[activeLocale].trustBadgeLabels[i]" :placeholder="badge.label" class="w-full" />
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <UButton :loading="savingTranslation === activeLocale" @click="saveTranslation(activeLocale)">
+              Save {{ LOCALE_LABELS[activeLocale] }}
+            </UButton>
+          </div>
         </div>
       </UCard>
     </div>

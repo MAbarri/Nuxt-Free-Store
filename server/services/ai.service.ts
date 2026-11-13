@@ -1,21 +1,11 @@
-import { createError, type H3Event } from 'h3'
+import type { H3Event } from 'h3'
 import { generateProductCopyFromImage, generateProductImage, translateProductContent } from '../utils/openrouter'
 import { productsService } from './products.service'
 import { productsRepository } from '../repositories/products.repository'
 import { productTranslationsRepository } from '../repositories/productTranslations.repository'
 import { variantsRepository } from '../repositories/variants.repository'
-import { uploadImageToR2 } from '../utils/media'
+import { uploadImageToR2, dataUrlToBytes } from '../utils/media'
 import type { TranslatableLocale } from '../utils/locale'
-
-function dataUrlToBytes(dataUrl: string): { data: Uint8Array, contentType: string } {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
-  if (!match) throw createError({ statusCode: 422, statusMessage: 'Invalid image data URL' })
-  const [, contentType, base64] = match
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return { data: bytes, contentType }
-}
 
 // One prompt per carousel shot, each instructed to preserve the reference
 // photo's garment exactly and only vary angle/setting — this is what keeps

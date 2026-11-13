@@ -319,6 +319,123 @@ async function saveTranslation(locale: TranslatableLocale) {
   }
 }
 
+// --- SEO generation ---
+const generatingSeo = ref(false)
+async function aiGenerateSeo() {
+  generatingSeo.value = true
+  try {
+    const result = await apiFetch<{ seoTitle: string, seoDescription: string, cost: number }>(
+      `/api/admin/products/${productId}/ai-generate-seo`,
+      { method: 'POST', body: {} },
+    )
+    form.seoTitle = result.seoTitle
+    form.seoDescription = result.seoDescription
+    toast.add({ title: 'SEO generated', description: `AI cost: $${result.cost.toFixed(4)} — review and save`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to generate SEO', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    generatingSeo.value = false
+  }
+}
+
+// --- Generate more photos with AI (uses the first existing photo as reference) ---
+interface AiReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, shotIndex: number }
+const aiImagesModalOpen = ref(false)
+const aiGeneratingImages = ref(false)
+const aiGeneratingLabel = ref('')
+const aiReviewImages = ref<AiReviewImage[]>([])
+const aiReferenceDataUrl = ref<string | null>(null)
+const aiImagesCost = ref(0)
+const aiSavingImages = ref(false)
+
+function fileToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function openAiImagesModal() {
+  if (!product.value?.images.length) {
+    toast.add({ title: 'Upload at least one photo first', description: 'AI needs an existing photo to generate consistent new ones from.', color: 'warning' })
+    return
+  }
+  aiImagesModalOpen.value = true
+  aiReviewImages.value = []
+  aiImagesCost.value = 0
+  aiGeneratingImages.value = true
+  aiGeneratingLabel.value = 'Preparing reference photo…'
+  try {
+    const refBlob = await (await fetch(product.value.images[0].url)).blob()
+    const dataUrl = await fileToDataUrl(refBlob)
+    aiReferenceDataUrl.value = dataUrl
+
+    aiGeneratingLabel.value = 'Generating photos — this can take up to a minute…'
+    const result = await apiFetch<{ images: Array<{ dataUrl: string }>, cost: number }>('/api/admin/ai/product-images', {
+      method: 'POST',
+      body: { imageDataUrl: dataUrl, count: 3 },
+    })
+    aiImagesCost.value += result.cost
+    aiReviewImages.value = result.images.map((img, i) => ({ dataUrl: img.dataUrl, kept: true, regenerating: false, shotIndex: i }))
+  }
+  catch (e) {
+    toast.add({ title: 'Generation failed', description: apiErrorMessage(e), color: 'error' })
+    aiImagesModalOpen.value = false
+  }
+  finally {
+    aiGeneratingImages.value = false
+    aiGeneratingLabel.value = ''
+  }
+}
+
+async function regenerateAiImage(image: AiReviewImage) {
+  if (!aiReferenceDataUrl.value) return
+  image.regenerating = true
+  try {
+    const result = await apiFetch<{ images: Array<{ dataUrl: string }>, cost: number }>('/api/admin/ai/product-images', {
+      method: 'POST',
+      body: { imageDataUrl: aiReferenceDataUrl.value, count: 1, shotIndex: image.shotIndex },
+    })
+    aiImagesCost.value += result.cost
+    if (result.images[0]) image.dataUrl = result.images[0].dataUrl
+  }
+  catch (e) {
+    toast.add({ title: 'Regeneration failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    image.regenerating = false
+  }
+}
+
+function removeAiImage(image: AiReviewImage) {
+  aiReviewImages.value = aiReviewImages.value.filter(i => i !== image)
+}
+
+async function saveAiImages() {
+  const kept = aiReviewImages.value.filter(i => i.kept).map(i => i.dataUrl)
+  if (!kept.length) {
+    aiImagesModalOpen.value = false
+    return
+  }
+  aiSavingImages.value = true
+  try {
+    await apiFetch(`/api/admin/products/${productId}/ai-images`, { method: 'POST', body: { imageDataUrls: kept } })
+    aiImagesModalOpen.value = false
+    await load()
+    toast.add({ title: 'Photos added', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save photos', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    aiSavingImages.value = false
+  }
+}
+
 // --- Variants ---
 const variantModalOpen = ref(false)
 const variantForm = reactive({ sku: '', price: null as number | null, stock: 0, isActive: true, selectedValues: {} as Record<string, string> })
@@ -467,6 +584,12 @@ onMounted(load)
 
           <UCheckbox v-model="form.isFeatured" label="Featured product" />
 
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-medium">SEO</p>
+            <UButton size="xs" variant="soft" icon="i-lucide-sparkles" :loading="generatingSeo" @click="aiGenerateSeo">
+              Generate with AI
+            </UButton>
+          </div>
           <UFormField label="SEO title"><UInput v-model="form.seoTitle" class="w-full" /></UFormField>
           <UFormField label="SEO description"><UTextarea v-model="form.seoDescription" class="w-full" /></UFormField>
 
@@ -475,7 +598,14 @@ onMounted(load)
       </UCard>
 
       <UCard>
-        <template #header><p class="font-medium">Images</p></template>
+        <template #header>
+          <div class="flex items-center justify-between">
+            <p class="font-medium">Images</p>
+            <UButton size="xs" variant="soft" icon="i-lucide-sparkles" @click="openAiImagesModal">
+              Generate more with AI
+            </UButton>
+          </div>
+        </template>
         <div class="grid grid-cols-2 gap-3">
           <div v-for="image in product.images" :key="image.id" class="product-media group rounded-md">
             <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
@@ -676,6 +806,41 @@ onMounted(load)
         </tbody>
       </table>
     </UCard>
+
+    <UModal v-model:open="aiImagesModalOpen" title="Generate more photos with AI" :ui="{ content: 'sm:max-w-2xl' }">
+      <template #body>
+        <div v-if="aiGeneratingImages" class="flex items-center gap-3 py-10">
+          <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
+          <p class="text-sm text-stone-600">{{ aiGeneratingLabel }}</p>
+        </div>
+        <div v-else>
+          <p class="text-sm text-stone-500">
+            Generated from this product's first photo. Review, regenerate, or remove any shot before saving.
+            AI cost so far: ${{ aiImagesCost.toFixed(4) }}
+          </p>
+          <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div v-for="image in aiReviewImages" :key="image.shotIndex">
+              <div class="product-media relative aspect-[3/4] rounded-md">
+                <img :src="image.dataUrl" alt="" class="h-full w-full object-cover">
+                <div v-if="image.regenerating" class="absolute inset-0 flex items-center justify-center bg-white/70">
+                  <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
+                </div>
+              </div>
+              <div class="mt-2 flex justify-center gap-1">
+                <UButton size="xs" variant="soft" icon="i-lucide-refresh-cw" :disabled="image.regenerating" @click="regenerateAiImage(image)" />
+                <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeAiImage(image)" />
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="aiImagesModalOpen = false">Cancel</UButton>
+            <UButton :loading="aiSavingImages" :disabled="!aiReviewImages.length" @click="saveAiImages">
+              Add {{ aiReviewImages.length }} photo{{ aiReviewImages.length === 1 ? '' : 's' }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
 
     <UModal v-model:open="variantModalOpen" title="New variant">
       <template #body>

@@ -31,6 +31,7 @@ see them.
 | Storefront i18n: French/English/Arabic + RTL (gap, not a numbered phase) | ✅ Done |
 | Real web fonts for fr/en + Arabic pairing (gap, not a numbered phase) | ✅ Done |
 | AI features: OpenRouter integration, catalog translation, AI product wizard (gap, not a numbered phase) | ✅ Done |
+| AI enrichment: product SEO, extra product photos, homepage copy + translation (gap, not a numbered phase) | ✅ Done |
 | 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
@@ -687,6 +688,65 @@ alongside (not replacing) manual product creation:
 - Guardrails: nothing is ever auto-saved — every AI step is a distinct,
   reviewable, re-runnable action; image count is capped at 4 per generation;
   all AI endpoints are admin-only (`requireAdmin`) and validated (zod).
+
+### AI enrichment: product SEO, extra product photos, homepage copy + translation (gap, not a numbered phase) — ✅ done
+Extended the AI features above to cover what was still untranslated/
+unfilled on the existing live site: product SEO fields (previously null
+on every product — translation alone can't invent SEO copy that doesn't
+exist yet), the ability to add AI-generated photos to a product that
+already exists (not just brand-new wizard products), and the homepage's
+own admin-editable copy (hero, tagline, promo banner, trust badges,
+announcement bar) — which turned out to be a mix of leftover French/
+English placeholder text from early scaffolding, not real content.
+
+- **Product SEO backfill** (`generateProductSeo` in
+  `server/utils/openrouter.ts`, `productsService.aiGenerateSeo`): a
+  text-only (no image) AI call that writes French SEO title/description
+  from a product's existing name/description. A "Generate with AI" button
+  sits next to the SEO fields on the product edit page; saves immediately
+  (consistent with how translation already behaves), still editable
+  before/after. Running the existing per-product "Translate with AI" /
+  bulk "Translate all" afterward now has real SEO content to translate
+  into en/ar, instead of propagating nulls.
+- **Add AI photos to an existing product** (`productsService.
+  addGeneratedImages`, `POST /api/admin/products/:id/ai-images`): the
+  wizard's image generation (`/api/admin/ai/product-images`) was already
+  generic, not tied to product creation — this just adds a persistence
+  endpoint plus a "Generate more with AI" button + review modal (reuse/
+  regenerate/remove per shot, same pattern as the wizard) on the normal
+  product edit page's Images card, using the product's first existing
+  photo as the reference.
+- **Homepage copy** (`settingsService.aiGenerateCopy`/`aiTranslate`,
+  `generateHomepageCopy`/`translateSettingsContent` in
+  `server/utils/openrouter.ts`): store_settings is a generic key-value
+  table, so en/ar overrides reuse that same table under
+  `settings_translation_en`/`settings_translation_ar` keys rather than a
+  new migration — `getBase()` explicitly filters those keys back out so
+  they never leak into the public/admin settings response (caught this
+  leaking into the public API during testing before it shipped). Admin
+  settings page gained the same locale-tab pattern as products/categories,
+  plus a "Generate French copy with AI" button that rewrites the
+  tagline/hero/promo/trust-badges/announcement-bar from AI, grounded in
+  the store's actual categories (not generic filler) — used once already
+  to replace the old placeholder hero copy on the live site. The
+  homepage's own `<title>`/meta description are now also derived from
+  these (translated) settings instead of a hardcoded English string.
+- Caught and fixed during testing: the AI occasionally ignored the
+  "single unicode symbol, no emoji" instruction for trust badge icons
+  (returned stray text/emoji once) — fixed by hand on the live site via
+  the settings API; worth regenerating/reviewing icons specifically if
+  re-running "Generate French copy" later.
+- Checked the real catalog before blindly generating extra photos: both
+  existing products already have 7–12 professional photos each from the
+  original import, so no AI images were force-added to them — the
+  capability is built, tested end-to-end (including in production), and
+  available per-product whenever it's actually useful (e.g. a product
+  with only one or two photos).
+- Verified end-to-end in production with real OpenRouter calls: SEO
+  generation + translation for both real products, homepage copy
+  generation + translation (and the storefront's `<title>`/meta actually
+  changing per locale), and the public settings API confirmed to no
+  longer leak the internal translation-storage keys.
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further

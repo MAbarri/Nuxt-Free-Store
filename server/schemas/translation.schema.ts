@@ -23,3 +23,22 @@ export const categoryTranslationWriteSchema = z.object({
 export const aiTranslateSchema = z.object({
   locales: z.array(z.enum(['en', 'ar'])).min(1).max(2).optional(),
 })
+
+const settingsHeroTranslationSchema = z.object({
+  title: z.string().trim().optional().nullable(),
+  subtitle: z.string().trim().optional().nullable(),
+  ctaLabel: z.string().trim().optional().nullable(),
+})
+
+const settingsPromoTranslationSchema = z.object({
+  title: z.string().trim().optional().nullable(),
+  subtitle: z.string().trim().optional().nullable(),
+})
+
+export const settingsTranslationWriteSchema = z.object({
+  tagline: z.string().trim().optional().nullable(),
+  announcementBar: z.string().trim().optional().nullable(),
+  hero: settingsHeroTranslationSchema.optional().nullable(),
+  promo: settingsPromoTranslationSchema.optional().nullable(),
+  trustBadges: z.array(z.object({ label: z.string().trim().nullable() })).max(6).optional().nullable(),
+})

@@ -225,3 +225,89 @@ export async function generateProductImage(event: H3Event, params: {
     cost: Number(json?.usage?.cost ?? 0),
   }
 }
+
+/** Writes French SEO meta title/description for an existing product from its name + description (no image needed). */
+export async function generateProductSeo(event: H3Event, params: {
+  name: string
+  description: string | null
+}): Promise<{ data: { seoTitle: string, seoDescription: string }, cost: number }> {
+  const system = [
+    'Write an SEO meta title and meta description in FRENCH for this fashion e-commerce product, based on its name and description.',
+    'Respond with ONLY a JSON object, no markdown fences: { "seoTitle": string, "seoDescription": string }.',
+    '- seoTitle: max 60 characters, naturally includes the product name.',
+    '- seoDescription: max 155 characters, enticing and accurate — no invented claims.',
+  ].join('\n')
+  const userText = JSON.stringify({ name: params.name, description: params.description })
+  const { data, cost } = await chatJson<{ seoTitle: string, seoDescription: string }>(event, { system, userText })
+  return { data, cost }
+}
+
+export interface HomepageCopyResult {
+  tagline: string
+  announcementBar: string
+  hero: { title: string, subtitle: string, ctaLabel: string }
+  promo: { title: string, subtitle: string }
+  trustBadges: Array<{ icon?: string, label: string }>
+}
+
+/** Writes fresh French homepage marketing copy (hero, tagline, promo banner, trust badges) reflecting the actual store. */
+export async function generateHomepageCopy(event: H3Event, params: {
+  storeName: string
+  categoryNames: string[]
+}): Promise<{ data: HomepageCopyResult, cost: number }> {
+  const system = [
+    `You are a copywriter for "${params.storeName}", an editorial-minimalist French fashion e-commerce brand selling cash-on-delivery clothing in Morocco.`,
+    'Write homepage marketing copy in FRENCH, elegant, concise, and specific to the brand — never generic filler.',
+    'Respond with ONLY a JSON object, no markdown fences, with exactly this shape:',
+    '{ "tagline": string, "announcementBar": string, "hero": { "title": string, "subtitle": string, "ctaLabel": string }, "promo": { "title": string, "subtitle": string }, "trustBadges": [{ "icon": string, "label": string }, ...] }',
+    '- tagline: one short brand line, max 80 characters.',
+    '- announcementBar: a short promotional line for a thin bar shown above the header on every page, max 80 characters.',
+    '- hero.title: a striking homepage headline, max 60 characters.',
+    '- hero.subtitle: one supporting sentence, max 140 characters.',
+    '- hero.ctaLabel: a short call-to-action button label, max 24 characters.',
+    '- promo.title: a short line emphasizing cash-on-delivery, max 60 characters.',
+    '- promo.subtitle: one supporting sentence, max 120 characters.',
+    '- trustBadges: exactly 3 items covering cash-on-delivery, nationwide shipping, and the exchange policy, in that order. Each "icon" is a single unicode symbol character (no emoji), each "label" is max 40 characters.',
+  ].join('\n')
+
+  const userText = params.categoryNames.length ? `Product categories: ${params.categoryNames.join(', ')}` : 'No categories yet.'
+
+  const { data, cost } = await chatJson<HomepageCopyResult>(event, { system, userText })
+  return { data, cost }
+}
+
+export interface SettingsTranslationResult {
+  tagline: string | null
+  announcementBar: string | null
+  hero: { title: string | null, subtitle: string | null, ctaLabel: string | null } | null
+  promo: { title: string | null, subtitle: string | null } | null
+  trustBadges: Array<{ label: string | null }> | null
+}
+
+/** Translates the store's homepage copy (hero, tagline, promo, trust badge labels) into the given target locale. */
+export async function translateSettingsContent(event: H3Event, params: {
+  targetLocale: 'en' | 'ar'
+  tagline: string
+  announcementBar: string | null
+  hero: { title: string, subtitle: string, ctaLabel: string }
+  promo: { title: string, subtitle: string }
+  trustBadges: Array<{ icon?: string, label: string }>
+}): Promise<{ data: SettingsTranslationResult, cost: number }> {
+  const system = [
+    `Translate this French e-commerce homepage copy into ${LOCALE_NAMES[params.targetLocale]}. Keep the tone elegant and concise, matching the original.`,
+    'Respond with ONLY a JSON object, no markdown fences, with exactly this shape:',
+    '{ "tagline": string, "announcementBar": string|null, "hero": {"title":string,"subtitle":string,"ctaLabel":string}, "promo": {"title":string,"subtitle":string}, "trustBadges": [{"label":string}, ...] }',
+    'trustBadges must have the same length and order as the input (icons are not translated, omit them).',
+  ].join('\n')
+
+  const userText = JSON.stringify({
+    tagline: params.tagline,
+    announcementBar: params.announcementBar,
+    hero: params.hero,
+    promo: params.promo,
+    trustBadges: params.trustBadges.map(b => ({ label: b.label })),
+  })
+
+  const { data, cost } = await chatJson<SettingsTranslationResult>(event, { system, userText })
+  return { data, cost }
+}
