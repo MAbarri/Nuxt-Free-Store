@@ -35,6 +35,9 @@ export interface ProductWriteInput {
   seoDescription?: string | null
   sizeGuideId?: string | null
   categoryIds?: string[]
+  layoutStyle?: 'standard' | 'landing'
+  landingBenefits?: Array<{ icon?: string, text: string }> | null
+  landingBlocks?: Array<{ imageUrl: string, caption?: string }> | null
 }
 
 export const productsService = {
@@ -114,6 +117,9 @@ export const productsService = {
       seoTitle: source.seoTitle,
       seoDescription: source.seoDescription,
       sizeGuideId: source.sizeGuideId,
+      layoutStyle: source.layoutStyle,
+      landingBenefits: source.landingBenefits,
+      landingBlocks: source.landingBlocks,
     })
     if (!copy) throw createError({ statusCode: 500, statusMessage: 'Failed to duplicate product' })
 

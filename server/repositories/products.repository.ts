@@ -17,6 +17,9 @@ export interface ProductInput {
   seoTitle?: string | null
   seoDescription?: string | null
   sizeGuideId?: string | null
+  layoutStyle?: 'standard' | 'landing'
+  landingBenefits?: Array<{ icon?: string, text: string }> | null
+  landingBlocks?: Array<{ imageUrl: string, caption?: string }> | null
 }
 
 export interface ProductListFilters {
@@ -91,6 +94,9 @@ export const productsRepository = {
       seoTitle: input.seoTitle ?? null,
       seoDescription: input.seoDescription ?? null,
       sizeGuideId: input.sizeGuideId ?? null,
+      layoutStyle: input.layoutStyle ?? 'standard',
+      landingBenefits: input.landingBenefits ?? null,
+      landingBlocks: input.landingBlocks ?? null,
       createdAt: now,
       updatedAt: now,
     })

@@ -13,6 +13,11 @@ const promoSchema = z.object({
   subtitle: z.string().trim().min(1),
 })
 
+const trustBadgeSchema = z.object({
+  icon: z.string().trim().max(8).optional(),
+  label: z.string().trim().min(1),
+})
+
 export const settingsUpdateSchema = z.object({
   storeName: z.string().trim().min(1).optional(),
   tagline: z.string().trim().min(1).optional(),
@@ -21,4 +26,5 @@ export const settingsUpdateSchema = z.object({
   defaultShippingFee: z.number().int().nonnegative().optional(),
   hero: heroSchema.optional(),
   promo: promoSchema.optional(),
+  trustBadges: z.array(trustBadgeSchema).max(6).optional(),
 })

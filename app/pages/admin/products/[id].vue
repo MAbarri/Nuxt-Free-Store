@@ -23,6 +23,8 @@ interface Variant {
   attributes: VariantAttr[]
 }
 interface ProductImage { id: string, url: string, altText: string | null }
+interface LandingBenefit { icon?: string, text: string }
+interface LandingBlock { imageUrl: string, caption?: string }
 interface Product {
   id: string
   name: string
@@ -40,6 +42,9 @@ interface Product {
   categoryIds: string[]
   images: ProductImage[]
   variants: Variant[]
+  layoutStyle: 'standard' | 'landing'
+  landingBenefits: LandingBenefit[] | null
+  landingBlocks: LandingBlock[] | null
 }
 interface Category { id: string, name: string }
 interface AttributeValue { id: string, value: string, swatchHex: string | null }
@@ -58,6 +63,9 @@ const form = reactive({
   basePrice: 0, compareAtPrice: null as number | null,
   status: 'draft' as Product['status'], isFeatured: false,
   seoTitle: '', seoDescription: '', sizeGuideId: '', categoryIds: [] as string[],
+  layoutStyle: 'standard' as Product['layoutStyle'],
+  landingBenefits: [] as LandingBenefit[],
+  landingBlocks: [] as LandingBlock[],
 })
 
 async function load() {
@@ -86,6 +94,9 @@ async function load() {
     form.seoDescription = p.seoDescription ?? ''
     form.sizeGuideId = p.sizeGuideId ?? ''
     form.categoryIds = [...p.categoryIds]
+    form.layoutStyle = p.layoutStyle ?? 'standard'
+    form.landingBenefits = p.landingBenefits ? p.landingBenefits.map(b => ({ ...b })) : []
+    form.landingBlocks = p.landingBlocks ? p.landingBlocks.map(b => ({ ...b })) : []
   }
   catch (e) {
     toast.add({ title: 'Failed to load product', description: apiErrorMessage(e), color: 'error' })
@@ -113,6 +124,13 @@ async function save() {
         seoDescription: form.seoDescription || null,
         sizeGuideId: form.sizeGuideId || null,
         categoryIds: form.categoryIds,
+        layoutStyle: form.layoutStyle,
+        landingBenefits: form.layoutStyle === 'landing'
+          ? form.landingBenefits.filter(b => b.text.trim()).map(b => ({ icon: b.icon || undefined, text: b.text }))
+          : null,
+        landingBlocks: form.layoutStyle === 'landing'
+          ? form.landingBlocks.filter(b => b.imageUrl).map(b => ({ imageUrl: b.imageUrl, caption: b.caption || undefined }))
+          : null,
       },
     })
     toast.add({ title: 'Product saved', color: 'success' })
@@ -168,6 +186,44 @@ async function onFileSelected(e: Event) {
 async function removeImage(imageId: string) {
   await apiFetch(`/api/admin/products/${productId}/images/${imageId}`, { method: 'DELETE' })
   await load()
+}
+
+// --- Landing page content (benefits + lifestyle blocks) ---
+function addBenefit() {
+  if (form.landingBenefits.length >= 6) return
+  form.landingBenefits.push({ icon: '', text: '' })
+}
+function removeBenefit(index: number) {
+  form.landingBenefits.splice(index, 1)
+}
+
+function addBlock() {
+  if (form.landingBlocks.length >= 3) return
+  form.landingBlocks.push({ imageUrl: '', caption: '' })
+}
+function removeBlock(index: number) {
+  form.landingBlocks.splice(index, 1)
+}
+
+const uploadingBlockIndex = ref<number | null>(null)
+async function onBlockImageSelected(e: Event, index: number) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadingBlockIndex.value = index
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const res = await $fetch<{ data: { url: string } }>(`/api/admin/products/${productId}/landing-images`, { method: 'POST', body })
+    form.landingBlocks[index].imageUrl = res.data.url
+  }
+  catch (e) {
+    toast.add({ title: 'Image upload failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    uploadingBlockIndex.value = null
+    input.value = ''
+  }
 }
 
 // --- Variants ---
@@ -345,12 +401,85 @@ onMounted(load)
     </div>
 
     <UCard class="mt-6">
+      <template #header><p class="font-medium">Landing page</p></template>
+      <p class="text-sm text-stone-500">
+        Switch this product to a long-form, single-product page with an embedded order form that
+        skips the cart entirely — modeled on single-product ad landing pages.
+      </p>
+
+      <UFormField label="Layout" class="mt-4 max-w-xs">
+        <USelect
+          v-model="form.layoutStyle"
+          :items="[{ label: 'Standard (cart & checkout)', value: 'standard' }, { label: 'Landing (direct order form)', value: 'landing' }]"
+        />
+      </UFormField>
+
+      <div v-if="form.layoutStyle === 'landing'" class="mt-6 space-y-8">
+        <div>
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-medium">
+              Benefits ("why you'll love it")
+            </p>
+            <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.landingBenefits.length >= 6" @click="addBenefit">
+              Add benefit
+            </UButton>
+          </div>
+          <p v-if="!form.landingBenefits.length" class="mt-2 text-sm text-stone-400">
+            No benefits yet.
+          </p>
+          <div v-for="(benefit, i) in form.landingBenefits" :key="i" class="mt-3 flex items-start gap-2">
+            <UInput v-model="benefit.icon" placeholder="✨" class="w-16" />
+            <UInput v-model="benefit.text" placeholder="A short selling point…" class="w-full" />
+            <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeBenefit(i)" />
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-medium">
+              Lifestyle photo blocks
+            </p>
+            <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.landingBlocks.length >= 3" @click="addBlock">
+              Add block
+            </UButton>
+          </div>
+          <p v-if="!form.landingBlocks.length" class="mt-2 text-sm text-stone-400">
+            No lifestyle blocks yet.
+          </p>
+          <div v-for="(block, i) in form.landingBlocks" :key="i" class="mt-3 flex gap-3 rounded-md border border-stone-200 p-3">
+            <div class="product-media size-24 shrink-0 rounded-md">
+              <img v-if="block.imageUrl" :src="block.imageUrl" alt="" class="h-full w-full object-cover">
+              <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+                <UIcon name="i-lucide-image" class="size-6" />
+              </div>
+            </div>
+            <div class="flex-1 space-y-2">
+              <label class="block">
+                <span class="sr-only">Upload image</span>
+                <input type="file" accept="image/*" :disabled="uploadingBlockIndex === i" class="text-sm" @change="(e) => onBlockImageSelected(e, i)">
+              </label>
+              <UInput v-model="block.caption" placeholder="Short caption…" class="w-full" />
+            </div>
+            <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeBlock(i)" />
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <UButton :loading="saving" @click="save">
+          Save changes
+        </UButton>
+      </div>
+    </UCard>
+
+    <UCard class="mt-6">
       <template #header>
         <div class="flex items-center justify-between">
           <p class="font-medium">Variants</p>
           <UButton size="sm" icon="i-lucide-plus" @click="openVariantModal">Add variant</UButton>
         </div>
       </template>
+
 
       <table class="w-full text-sm">
         <thead class="text-left text-xs uppercase tracking-wide text-stone-500">

@@ -4,6 +4,8 @@ import { shippingService } from './shipping.service'
 import { inventoryService } from './inventory.service'
 import { ordersRepository, type OrderItemInput } from '../repositories/orders.repository'
 import { ordersService } from './orders.service'
+import { productsRepository } from '../repositories/products.repository'
+import { variantsRepository } from '../repositories/variants.repository'
 import { resolveCustomerProfileId } from '../utils/customer'
 
 export interface CheckoutInput {
@@ -13,6 +15,12 @@ export interface CheckoutInput {
   city: string
   addressLine: string
   deliveryInstructions?: string
+}
+
+export interface DirectOrderInput extends CheckoutInput {
+  productId: string
+  variantId: string
+  quantity: number
 }
 
 function buildOrderNumber(): string {
@@ -133,6 +141,88 @@ export const checkoutService = {
     })
 
     await cartService.clear(event)
+
+    return ordersService.getDetail(event, orderId)
+  },
+
+  /**
+   * Places an order for a single product/variant directly, with no cart
+   * involved — used by Landing-style product pages' embedded order form.
+   * Reuses the same stock-decrement, shipping-fee, and order-number logic
+   * as `createOrder`, scoped to a single line item.
+   */
+  async createDirectOrder(event: H3Event, input: DirectOrderInput) {
+    const product = await productsRepository.findById(event, input.productId)
+    if (!product || product.status !== 'active') {
+      throw createError({ statusCode: 404, statusMessage: 'Product not found' })
+    }
+    if (product.layoutStyle !== 'landing') {
+      throw createError({ statusCode: 422, statusMessage: 'This product does not support direct ordering' })
+    }
+
+    const variants = await variantsRepository.listByProduct(event, product.id)
+    const variant = variants.find(v => v.id === input.variantId)
+    if (!variant) {
+      throw createError({ statusCode: 404, statusMessage: 'Variant not found' })
+    }
+    if (!variant.isActive || variant.stock < input.quantity) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'This item is no longer available in the requested quantity',
+      })
+    }
+
+    const unitPrice = variant.price ?? product.basePrice
+    const subtotal = unitPrice * input.quantity
+
+    const { fee: shippingFee } = await shippingService.calculateFee(event, input.city, subtotal)
+    const total = subtotal + shippingFee
+
+    const orderNumber = await generateUniqueOrderNumber(event)
+    const customerProfileId = await resolveCustomerProfileId(event)
+
+    await inventoryService.adjustStock(event, variant.id, -input.quantity, 'order_placed')
+
+    const variantLabel = variant.attributes.map(a => `${a.attributeName}: ${a.value}`).join(' / ') || null
+
+    const item: OrderItemInput = {
+      productId: product.id,
+      variantId: variant.id,
+      productName: product.name,
+      variantLabel,
+      sku: variant.sku,
+      unitPrice,
+      quantity: input.quantity,
+      subtotal,
+    }
+
+    let orderId: string
+    try {
+      orderId = await ordersRepository.create(event, {
+        orderNumber,
+        customerProfileId,
+        customerName: input.fullName,
+        customerPhone: input.phone,
+        customerEmail: input.email || null,
+        city: input.city,
+        addressLine: input.addressLine,
+        deliveryInstructions: input.deliveryInstructions || null,
+        subtotal,
+        shippingFee,
+        total,
+        items: [item],
+      })
+    }
+    catch (error) {
+      await inventoryService.adjustStock(event, variant.id, input.quantity, 'manual_adjustment', {
+        note: 'Automatic rollback: direct order failed after stock reservation',
+      }).catch(() => {})
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'Could not place your order. Please try again.',
+        cause: error,
+      })
+    }
 
     return ordersService.getDetail(event, orderId)
   },

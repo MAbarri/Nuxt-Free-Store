@@ -19,6 +19,11 @@ const DEFAULTS = {
     title: 'Cash on delivery, everywhere we ship',
     subtitle: 'Pay when your order arrives — no card required.',
   },
+  trustBadges: [
+    { icon: '◇', label: 'Cash on delivery' },
+    { icon: '↗', label: 'Nationwide shipping' },
+    { icon: '↺', label: 'Easy exchanges' },
+  ] as Array<{ icon?: string, label: string }>,
 }
 
 export type StoreSettings = typeof DEFAULTS

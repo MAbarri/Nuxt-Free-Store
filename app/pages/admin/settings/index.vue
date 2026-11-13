@@ -3,6 +3,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 
 interface Hero { title: string, subtitle: string, imageUrl: string | null, ctaLabel: string, ctaHref: string }
 interface Promo { title: string, subtitle: string }
+interface TrustBadge { icon?: string, label: string }
 interface Settings {
   storeName: string
   tagline: string
@@ -11,6 +12,7 @@ interface Settings {
   defaultShippingFee: number
   hero: Hero
   promo: Promo
+  trustBadges: TrustBadge[]
 }
 
 const toast = useToast()
@@ -25,6 +27,7 @@ const form = reactive({
   defaultShippingFee: 0,
   hero: { title: '', subtitle: '', imageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
   promo: { title: '', subtitle: '' },
+  trustBadges: [] as TrustBadge[],
 })
 
 async function load() {
@@ -38,6 +41,7 @@ async function load() {
     form.defaultShippingFee = settings.defaultShippingFee / 100
     form.hero = { ...settings.hero }
     form.promo = { ...settings.promo }
+    form.trustBadges = settings.trustBadges.map(b => ({ ...b }))
   }
   catch (e) {
     toast.add({ title: 'Failed to load settings', description: apiErrorMessage(e), color: 'error' })
@@ -60,6 +64,7 @@ async function save() {
         defaultShippingFee: Math.round(form.defaultShippingFee * 100),
         hero: form.hero,
         promo: form.promo,
+        trustBadges: form.trustBadges.filter(b => b.label.trim()).map(b => ({ icon: b.icon || undefined, label: b.label })),
       },
     })
     toast.add({ title: 'Settings saved', color: 'success' })
@@ -112,6 +117,14 @@ async function onHeroImageSelected(e: Event) {
     uploadingHero.value = false
     input.value = ''
   }
+}
+
+function addTrustBadge() {
+  if (form.trustBadges.length >= 6) return
+  form.trustBadges.push({ icon: '', label: '' })
+}
+function removeTrustBadge(index: number) {
+  form.trustBadges.splice(index, 1)
 }
 
 onMounted(load)
@@ -191,6 +204,28 @@ onMounted(load)
         <div class="grid gap-4 md:grid-cols-2">
           <UFormField label="Title"><UInput v-model="form.promo.title" class="w-full" /></UFormField>
           <UFormField label="Subtitle"><UInput v-model="form.promo.subtitle" class="w-full" /></UFormField>
+        </div>
+      </UCard>
+
+      <UCard class="lg:col-span-2">
+        <template #header>
+          <div class="flex items-center justify-between">
+            <p class="font-medium">Trust badges</p>
+            <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.trustBadges.length >= 6" @click="addTrustBadge">
+              Add badge
+            </UButton>
+          </div>
+        </template>
+        <p class="text-sm text-stone-500">
+          Shown on every Landing-style product page (e.g. shipping, payment, and exchange policy).
+        </p>
+        <p v-if="!form.trustBadges.length" class="mt-2 text-sm text-stone-400">
+          No trust badges yet.
+        </p>
+        <div v-for="(badge, i) in form.trustBadges" :key="i" class="mt-3 flex items-center gap-2">
+          <UInput v-model="badge.icon" placeholder="◇" class="w-16" />
+          <UInput v-model="badge.label" placeholder="Cash on delivery" class="w-full" />
+          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeTrustBadge(i)" />
         </div>
       </UCard>
     </div>

@@ -8,6 +8,7 @@ interface ProductRow {
   basePrice: number
   status: 'draft' | 'active' | 'archived'
   isFeatured: boolean
+  layoutStyle: 'standard' | 'landing'
 }
 
 const toast = useToast()
@@ -119,6 +120,7 @@ onMounted(load)
             <td class="px-4 py-3 font-medium">
               <NuxtLink :to="`/admin/products/${product.id}`" class="hover:underline">{{ product.name }}</NuxtLink>
               <UBadge v-if="product.isFeatured" size="xs" color="primary" variant="subtle" class="ml-2">Featured</UBadge>
+              <UBadge v-if="product.layoutStyle === 'landing'" size="xs" color="secondary" variant="subtle" class="ml-2">Landing</UBadge>
             </td>
             <td class="px-4 py-3 text-stone-500">{{ product.sku }}</td>
             <td class="px-4 py-3">{{ formatPrice(product.basePrice) }}</td>

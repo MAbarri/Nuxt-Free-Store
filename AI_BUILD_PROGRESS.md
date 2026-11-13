@@ -26,6 +26,7 @@ see them.
 | 9. Shipping configuration | ✅ Done |
 | 10. Inventory management | ✅ Done |
 | Store settings admin page (gap, not a numbered phase) | ✅ Done |
+| Landing product pages (gap, not a numbered phase) | ✅ Done |
 | 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
@@ -74,7 +75,7 @@ pnpm db:generate          # after any schema change in server/database/schema/
 pnpm db:migrate:local      # apply to local D1 (wrangler/Miniflare state)
 pnpm dev --port 3300       # dev server with Cloudflare bindings emulated
 pnpm build                 # production build check
-pnpm test                  # vitest (20 tests as of Phase 8)
+pnpm test                  # vitest (24 tests as of the Landing product pages feature)
 ```
 
 To promote a registered user to admin for manual testing (no seed script
@@ -251,7 +252,7 @@ these four first.
 
 ## Testing
 
-20 tests across 5 files in `tests/unit/`, all exercising real business logic
+24 tests across 6 files in `tests/unit/`, all exercising real business logic
 against the real D1 schema (not mocked):
 
 - `password.test.ts` — PBKDF2 hash/verify round trip
@@ -264,6 +265,10 @@ against the real D1 schema (not mocked):
 - `order-management.test.ts` — stock restoration on cancel, no
   double-restore, restoration on `returned`, no restoration on normal
   progression, independent payment-status updates
+- `direct-order.test.ts` — `checkoutService.createDirectOrder` (Landing
+  product pages' cart-free order path): creates an order and decrements
+  stock, rejects a `standard`-layout product (422), rejects quantity over
+  stock leaving stock untouched (409), rejects an unknown product (404)
 
 Run via `pnpm test`. Uses `tests/setup/apply-migrations.ts` +
 `vitest.config.ts`'s `cloudflareTest` plugin — migrations are read from
@@ -341,6 +346,68 @@ Admin CRUD built on top of the pre-existing repository/service:
   title, promo title all changed), invalid hex color rejected with 422,
   non-admin blocked with 401, image upload to R2 returns a working
   `/media/...` url, defaults restored after testing
+
+### Landing product pages (gap, not a numbered phase) — ✅ done
+Per-product opt-in alternate storefront template modeled on single-product
+ad-funnel landing pages (e.g. hodhodshop.com-style COD stores): a long-form
+page with an embedded direct-order form that **fully replaces cart/checkout**
+for that one product, plus marketing sections (benefits, lifestyle photos,
+trust badges) and a sticky bottom CTA bar. Most products stay on the existing
+`standard` cart-based page — this is additive, not a replacement.
+
+- **Data model**: `products.layout_style` (`'standard' | 'landing'`, default
+  `'standard'`), `products.landing_benefits` (JSON array of
+  `{ icon?, text }`, max 6), `products.landing_blocks` (JSON array of
+  `{ imageUrl, caption? }`, max 3) — migration `0001_quick_xorn.sql`.
+  `store_settings` gained a `trustBadges` key (JSON array of
+  `{ icon?, label }`, max 6, store-wide, shown on every Landing page) with
+  three sensible defaults (`settings.service.ts`).
+- **Direct order flow** (bypasses the cart entirely): new
+  `checkoutService.createDirectOrder(event, input)` in
+  `server/services/checkout.service.ts` — validates the product is `active`
+  + `layoutStyle === 'landing'`, validates the variant belongs to it and has
+  enough stock, calculates shipping via the existing
+  `shippingService.calculateFee`, decrements stock via the existing
+  `inventoryService.adjustStock` (with the same rollback-on-failure pattern
+  as `createOrder`), creates the order via the existing `ordersRepository`,
+  and returns the same shape as cart checkout so
+  `/order-confirmation/:id` needs no changes. Schema:
+  `server/schemas/direct-order.schema.ts`. Route:
+  `POST /api/checkout/direct` (public, no auth required — same as
+  `/api/checkout`).
+- **Admin UI**:
+  - `/admin/products/:id` gained a "Landing page" card: a layout-style
+    select, a benefits repeater (icon + text, max 6), and a lifestyle-block
+    repeater (image upload + caption, max 3). Lifestyle images upload via a
+    new `POST /api/admin/products/:id/landing-images` route (same
+    `uploadImageToR2` pattern as the regular gallery, but folder
+    `products/:id/landing` and **not** stored in `product_images` — the URL
+    is stored directly in the `landingBlocks` JSON field instead, like hero
+    images in store settings).
+  - `/admin/settings` gained a "Trust badges" card (icon + label repeater,
+    max 6).
+  - `/admin/products` list shows a "Landing" badge next to the product name.
+- **Storefront**: `app/pages/products/[slug].vue` branches on
+  `product.layoutStyle` — `standard` renders the original template
+  unchanged; `landing` renders the new `app/components/ProductLandingPage.vue`
+  instead. The variant-selection logic (attribute grouping, in-stock default
+  selection, price/stock derivation) used to live inline in `[slug].vue`; it
+  was extracted verbatim into `app/composables/useProductVariants.ts` so both
+  templates share identical behavior — if you touch variant-selection logic,
+  edit the composable, not either page/component.
+  `ProductLandingPage.vue` has no related-products section and no live
+  shipping quote in its form (intentional — it shows a generic "fees
+  confirmed on review" note instead, per product decision), but is otherwise
+  gallery → price/variants/quantity → embedded order form → sticky bottom
+  CTA bar (`IntersectionObserver` on the order card) → benefits → lifestyle
+  blocks → trust badges.
+- Verified end-to-end via curl: switched a real product (Wool Coat 3) to
+  `landing` with benefits/blocks, confirmed the public API and rendered page
+  show the new template and no "Add to cart" button, placed a direct order
+  (stock decremented, order visible in `/admin/orders`, confirmation page
+  renders), confirmed guard rails (`422` on a `standard` product, `409` on
+  quantity exceeding stock, `422` validation on missing fields). Unit tests:
+  `tests/unit/direct-order.test.ts`.
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further

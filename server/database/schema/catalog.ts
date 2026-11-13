@@ -43,6 +43,14 @@ export const products = sqliteTable('products', {
   seoTitle: text('seo_title'),
   seoDescription: text('seo_description'),
   sizeGuideId: text('size_guide_id').references(() => sizeGuides.id, { onDelete: 'set null' }),
+  // 'landing' swaps the storefront product page for a long-form, single-product
+  // template with an embedded direct-order form in place of cart/checkout
+  // (see AI_BUILD_PROGRESS.md "Landing product pages").
+  layoutStyle: text('layout_style', { enum: ['standard', 'landing'] }).notNull().default('standard'),
+  // Short "why you'll love it" bullets, e.g. [{ icon: '✨', text: '...' }]. Landing layout only.
+  landingBenefits: text('landing_benefits', { mode: 'json' }).$type<Array<{ icon?: string, text: string }>>(),
+  // Editorial lifestyle photo + caption blocks, e.g. [{ imageUrl, caption }]. Landing layout only.
+  landingBlocks: text('landing_blocks', { mode: 'json' }).$type<Array<{ imageUrl: string, caption?: string }>>(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
