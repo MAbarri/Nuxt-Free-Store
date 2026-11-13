@@ -27,6 +27,7 @@ see them.
 | 10. Inventory management | ✅ Done |
 | Store settings admin page (gap, not a numbered phase) | ✅ Done |
 | Landing product pages (gap, not a numbered phase) | ✅ Done |
+| Currency switch to MAD + real product import (gap, not a numbered phase) | ✅ Done |
 | 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
@@ -408,6 +409,66 @@ trust badges) and a sticky bottom CTA bar. Most products stay on the existing
   renders), confirmed guard rails (`422` on a `standard` product, `409` on
   quantity exceeding stock, `422` validation on missing fields). Unit tests:
   `tests/unit/direct-order.test.ts`.
+
+### Currency switch to MAD + real product import (gap, not a numbered phase) — ✅ done
+The store's first real (non-demo) products were imported from two existing
+single-product COD landing sites the owner runs on hodhodshop.com
+(`alma.hodhodshop.com`, `elise.hodhodshop.com`), fetched and re-hosted
+directly rather than hand-entered.
+
+- **Currency**: switched store-wide from USD to MAD (Moroccan Dirham),
+  displayed with the colloquial "DH" suffix (`599 DH`), not `$` or the ISO
+  `MAD` code. Added `app/utils/currency.ts` exporting `formatPrice(cents)`
+  — a single shared helper that replaced 16 duplicated inline
+  `toLocaleString(..., { style: 'currency', currency: 'USD' })` functions
+  across storefront + admin pages/components. `orders.currency` is now
+  hardcoded `'MAD'` on creation (`checkout.service.ts` / `orders.repository.ts`).
+  If a future store needs multi-currency or a different display format,
+  start from this one util, not by re-duplicating inline formatters.
+- **Trust badges + Landing template → French**: the store-wide
+  `trustBadges` default and all fixed/chrome text in
+  `ProductLandingPage.vue` (form labels, CTA button, section headers,
+  sticky bar, toast messages) were translated to French. This is global —
+  **any future Landing-style product will show French chrome text**, even
+  if its own content is in English, since there's no i18n layer in this
+  project. If an English-language Landing product is ever added, this
+  component's hardcoded strings need to be revisited (either translated
+  back, or a proper i18n solution introduced).
+- **Imported two real products** (both `layoutStyle: 'landing'`):
+  "Manteau Alma — Brun Chocolat" (599 DH, sizes S/M/L) and "Manteau Élise —
+  Bleu Marine" (349 DH, sizes S/M/L modeled as 0-stock/unavailable plus
+  XL/XXL in stock, matching the source site). New "Taille" (select) and
+  "Couleur" (swatch) attributes and a "Manteaux" category were created.
+  All gallery and lifestyle-block images were downloaded from the source
+  sites and re-uploaded through the normal admin upload endpoints into this
+  store's own R2 bucket — nothing hotlinks hodhodshop.com.
+- A one-off import script (not part of the repo — it was a scripted series
+  of admin API calls, run once against local dev to verify, then once
+  against production) created the attributes, category, products,
+  variants, and images, then set the French `trustBadges`. If more
+  hodhodshop-style products ever need importing, recreate the same style of
+  script rather than hand-clicking through the admin UI.
+- **Found and fixed a real, pre-existing production bug while verifying
+  this**: every public page that loaded data via
+  `useAsyncData(() => $fetch(...))` (homepage, `/categories`,
+  `/category/:slug`, `/products` sidebar, `/products/:slug`, the global
+  `StorefrontHeader` store name, and `ProductLandingPage`'s trust badges)
+  silently returned empty/null data during server-side rendering
+  specifically on the **deployed Cloudflare Worker** — plain `$fetch` to a
+  relative URL does not resolve the same way there as it does under local
+  dev's Miniflare emulation, so this had been invisible all along (local
+  `pnpm dev` always looked correct). The affected pages rendered as
+  near-empty / "not found" on first paint in production, only "fixing
+  themselves" after client-side hydration re-fetched. Fixed by switching
+  every one of those `useAsyncData` fetchers from `$fetch` to the existing
+  `apiFetch()` composable (`app/composables/useApi.ts`), which uses
+  `useRequestFetch()` during SSR — proven working in production already via
+  `order-confirmation/[id].vue`. **Any new page added that needs SSR data
+  must use `apiFetch`, never bare `$fetch`, for this reason** — `$fetch` is
+  still fine for client-only interactive calls (form submits, button
+  clicks), just not for anything awaited at the top of `<script setup>`.
+  Verified via curl directly against the live production URL, both before
+  (broken) and after (fixed) this change.
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further
