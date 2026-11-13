@@ -244,6 +244,21 @@ async function removeImage(imageId: string) {
   await load()
 }
 
+const settingPrimaryImageId = ref<string | null>(null)
+async function setPrimaryImage(imageId: string) {
+  settingPrimaryImageId.value = imageId
+  try {
+    await apiFetch(`/api/admin/products/${productId}/images/${imageId}/primary`, { method: 'PUT' })
+    await load()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to set primary image', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    settingPrimaryImageId.value = null
+  }
+}
+
 // --- Landing page content (benefits + lifestyle blocks) ---
 function addBenefit() {
   if (form.landingBenefits.length >= 6) return
@@ -759,8 +774,20 @@ onMounted(load)
           </div>
         </template>
         <div class="grid grid-cols-2 gap-3">
-          <div v-for="image in product.images" :key="image.id" class="product-media group rounded-md">
+          <div v-for="(image, i) in product.images" :key="image.id" class="product-media group relative rounded-md">
             <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
+            <UBadge v-if="i === 0" size="xs" color="primary" variant="solid" class="absolute left-1 top-1">
+              Primary
+            </UBadge>
+            <UButton
+              v-else
+              size="xs" variant="solid" color="neutral" icon="i-lucide-star"
+              class="absolute left-1 top-1 opacity-0 group-hover:opacity-100"
+              :loading="settingPrimaryImageId === image.id"
+              @click="setPrimaryImage(image.id)"
+            >
+              Set as primary
+            </UButton>
             <UButton
               size="xs" variant="solid" color="error" icon="i-lucide-trash-2"
               class="absolute right-1 top-1 opacity-0 group-hover:opacity-100"

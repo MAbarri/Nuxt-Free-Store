@@ -155,4 +155,18 @@ export const productsRepository = {
     await db.delete(productImages).where(eq(productImages.id, imageId))
     return row ?? null
   },
+
+  /** Moves the given image to sortOrder 0 (the gallery's "primary" slot — see wishlist/storefront `images[0]` convention), shifting the rest back while preserving their relative order. */
+  async setPrimaryImage(event: H3Event, productId: string, imageId: string) {
+    const db = useDb(event)
+    const existing = await db.select().from(productImages).where(eq(productImages.productId, productId)).orderBy(asc(productImages.sortOrder))
+    const target = existing.find(i => i.id === imageId)
+    if (!target) return null
+    const reordered = [target, ...existing.filter(i => i.id !== imageId)]
+    for (let i = 0; i < reordered.length; i++) {
+      reordered[i] = { ...reordered[i], sortOrder: i }
+      await db.update(productImages).set({ sortOrder: i }).where(eq(productImages.id, reordered[i].id))
+    }
+    return reordered
+  },
 }
