@@ -16,6 +16,10 @@ const DEFAULTS = {
     title: 'New season, quietly considered',
     subtitle: 'Clothing made from natural fibers, designed to last beyond the season.',
     imageUrl: null as string | null,
+    // Optional override shown instead of imageUrl on narrow (mobile) screens,
+    // for a hero photo that's cropped/composed for a portrait aspect ratio.
+    // Falls back to imageUrl when not set.
+    mobileImageUrl: null as string | null,
     ctaLabel: 'Shop the collection',
     ctaHref: '/products',
   },

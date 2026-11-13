@@ -34,12 +34,15 @@ function openQuickView(slug: string) {
   <div>
     <!-- Hero -->
     <section class="relative flex min-h-[70vh] items-end overflow-hidden bg-stone-900 text-white sm:min-h-[80vh]">
-      <img
-        v-if="settings?.hero?.imageUrl"
-        :src="settings.hero.imageUrl"
-        alt=""
-        class="absolute inset-0 h-full w-full object-cover opacity-70"
-      >
+      <picture>
+        <source v-if="settings?.hero?.mobileImageUrl" media="(max-width: 639px)" :srcset="settings.hero.mobileImageUrl">
+        <img
+          v-if="settings?.hero?.imageUrl"
+          :src="settings.hero.imageUrl"
+          alt=""
+          class="absolute inset-0 h-full w-full object-cover opacity-70"
+        >
+      </picture>
       <div class="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         <p class="text-xs uppercase tracking-widest text-white/70">{{ t('home.heroEyebrow') }}</p>
         <h1 class="mt-3 max-w-xl font-display text-4xl sm:text-5xl">

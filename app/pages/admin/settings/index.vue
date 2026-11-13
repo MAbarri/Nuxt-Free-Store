@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 
-interface Hero { title: string, subtitle: string, imageUrl: string | null, ctaLabel: string, ctaHref: string }
+interface Hero { title: string, subtitle: string, imageUrl: string | null, mobileImageUrl: string | null, ctaLabel: string, ctaHref: string }
 interface Promo { title: string, subtitle: string }
 interface TrustBadge { icon?: string, label: string }
 interface Analytics { gaMeasurementId: string | null, fbPixelId: string | null, fbConversionsApiEnabled: boolean }
@@ -40,7 +40,7 @@ const form = reactive({
   accentColor: '#bb6540',
   defaultShippingFee: 0,
   announcementBar: '' as string | null,
-  hero: { title: '', subtitle: '', imageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
+  hero: { title: '', subtitle: '', imageUrl: null as string | null, mobileImageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
   promo: { title: '', subtitle: '' },
   trustBadges: [] as TrustBadge[],
   analytics: { gaMeasurementId: null, fbPixelId: null, fbConversionsApiEnabled: false } as Analytics,
@@ -181,6 +181,31 @@ async function onHeroImageSelected(e: Event) {
     uploadingHero.value = false
     input.value = ''
   }
+}
+
+const uploadingHeroMobile = ref(false)
+async function onHeroMobileImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadingHeroMobile.value = true
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const res = await $fetch<{ data: { url: string } }>('/api/admin/settings/images', { method: 'POST', body })
+    form.hero.mobileImageUrl = res.data.url
+  }
+  catch (e) {
+    toast.add({ title: 'Mobile hero image upload failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    uploadingHeroMobile.value = false
+    input.value = ''
+  }
+}
+
+function clearHeroMobileImage() {
+  form.hero.mobileImageUrl = null
 }
 
 function addTrustBadge() {
@@ -344,20 +369,41 @@ onMounted(load)
             <UFormField label="CTA label"><UInput v-model="form.hero.ctaLabel" class="w-full" /></UFormField>
             <UFormField label="CTA link"><UInput v-model="form.hero.ctaHref" class="w-full" /></UFormField>
           </div>
-          <UFormField label="Hero image">
-            <div class="space-y-3">
-              <div class="product-media aspect-[16/9] rounded-md">
-                <img v-if="form.hero.imageUrl" :src="form.hero.imageUrl" alt="Hero" class="h-full w-full object-cover">
-                <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
-                  <UIcon name="i-lucide-image" class="size-10" />
+          <div class="space-y-4">
+            <UFormField label="Hero image (desktop)">
+              <div class="space-y-3">
+                <div class="product-media aspect-[16/9] rounded-md">
+                  <img v-if="form.hero.imageUrl" :src="form.hero.imageUrl" alt="Hero" class="h-full w-full object-cover">
+                  <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+                    <UIcon name="i-lucide-image" class="size-10" />
+                  </div>
+                </div>
+                <label>
+                  <span class="sr-only">Upload hero image</span>
+                  <input type="file" accept="image/*" :disabled="uploadingHero" class="text-sm" @change="onHeroImageSelected">
+                </label>
+              </div>
+            </UFormField>
+            <UFormField label="Hero image (mobile)" description="Optional. Shown instead of the desktop image on small screens — use this for a photo framed/cropped for a tall, narrow screen. Falls back to the desktop image if left empty.">
+              <div class="space-y-3">
+                <div class="product-media aspect-[3/4] w-40 rounded-md">
+                  <img v-if="form.hero.mobileImageUrl" :src="form.hero.mobileImageUrl" alt="Hero (mobile)" class="h-full w-full object-cover">
+                  <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+                    <UIcon name="i-lucide-smartphone" class="size-8" />
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <label>
+                    <span class="sr-only">Upload mobile hero image</span>
+                    <input type="file" accept="image/*" :disabled="uploadingHeroMobile" class="text-sm" @change="onHeroMobileImageSelected">
+                  </label>
+                  <UButton v-if="form.hero.mobileImageUrl" size="xs" variant="ghost" color="error" @click="clearHeroMobileImage">
+                    Remove
+                  </UButton>
                 </div>
               </div>
-              <label>
-                <span class="sr-only">Upload hero image</span>
-                <input type="file" accept="image/*" :disabled="uploadingHero" class="text-sm" @change="onHeroImageSelected">
-              </label>
-            </div>
-          </UFormField>
+            </UFormField>
+          </div>
         </div>
       </UCard>
 

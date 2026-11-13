@@ -4,6 +4,7 @@ const heroSchema = z.object({
   title: z.string().trim().min(1),
   subtitle: z.string().trim().min(1),
   imageUrl: z.string().trim().min(1).nullable(),
+  mobileImageUrl: z.string().trim().min(1).nullable().optional(),
   ctaLabel: z.string().trim().min(1),
   ctaHref: z.string().trim().min(1),
 })
