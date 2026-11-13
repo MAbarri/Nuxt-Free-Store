@@ -9,8 +9,8 @@ const quantity = ref(1)
 const productRef = computed(() => props.product)
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(productRef)
 
-const { data: settingsRes } = await useAsyncData('landing-store-settings', () => $fetch('/api/store-settings'))
-const trustBadges = computed(() => settingsRes.value?.data?.trustBadges ?? [])
+const { data: settingsRes } = await useAsyncData('landing-store-settings', () => apiFetch<any>('/api/store-settings'))
+const trustBadges = computed(() => settingsRes.value?.trustBadges ?? [])
 
 const form = reactive({
   fullName: '',

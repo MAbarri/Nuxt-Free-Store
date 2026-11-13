@@ -1,6 +1,6 @@
 <script setup lang="ts">
-const { data: settings } = await useAsyncData('store-settings-nav', () => $fetch('/api/store-settings'))
-const storeName = computed(() => settings.value?.data?.storeName ?? 'Atelier')
+const { data: settings } = await useAsyncData('store-settings-nav', () => apiFetch<any>('/api/store-settings'))
+const storeName = computed(() => settings.value?.storeName ?? 'Atelier')
 
 const { cart, refresh: refreshCart } = useCart()
 await useAsyncData('cart-init', refreshCart)

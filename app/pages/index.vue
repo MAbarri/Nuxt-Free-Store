@@ -1,19 +1,19 @@
 <script setup lang="ts">
 useHead({ title: 'Atelier — Thoughtfully made clothing' })
 
-const { data: settingsRes } = await useAsyncData('home-settings', () => $fetch('/api/store-settings'))
-const settings = computed(() => settingsRes.value?.data)
+const { data: settingsRes } = await useAsyncData('home-settings', () => apiFetch<any>('/api/store-settings'))
+const settings = computed(() => settingsRes.value)
 
 const { data: featuredRes, pending: featuredLoading } = await useAsyncData('home-featured', () =>
-  $fetch('/api/products', { query: { featured: true, pageSize: 4 } }))
-const featured = computed(() => featuredRes.value?.data.rows ?? [])
+  apiFetch<{ rows: any[] }>('/api/products', { query: { featured: true, pageSize: 4 } }))
+const featured = computed(() => featuredRes.value?.rows ?? [])
 
 const { data: latestRes, pending: latestLoading } = await useAsyncData('home-latest', () =>
-  $fetch('/api/products', { query: { sort: 'newest', pageSize: 8 } }))
-const latest = computed(() => latestRes.value?.data.rows ?? [])
+  apiFetch<{ rows: any[] }>('/api/products', { query: { sort: 'newest', pageSize: 8 } }))
+const latest = computed(() => latestRes.value?.rows ?? [])
 
-const { data: categoriesRes } = await useAsyncData('home-categories', () => $fetch('/api/categories'))
-const categories = computed(() => categoriesRes.value?.data ?? [])
+const { data: categoriesRes } = await useAsyncData('home-categories', () => apiFetch<any[]>('/api/categories'))
+const categories = computed(() => categoriesRes.value ?? [])
 
 const quickViewSlug = ref<string | null>(null)
 const quickViewOpen = ref(false)

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 useHead({ title: 'Shop — Atelier' })
 
-const { data: categoriesRes } = await useAsyncData('products-categories', () => $fetch('/api/categories'))
-const categories = computed(() => categoriesRes.value?.data ?? [])
+const { data: categoriesRes } = await useAsyncData('products-categories', () => apiFetch<any[]>('/api/categories'))
+const categories = computed(() => categoriesRes.value ?? [])
 
-const { data: attributesRes } = await useAsyncData('products-attributes', () => $fetch('/api/attributes'))
-const filterableAttributes = computed(() => (attributesRes.value?.data ?? []).filter((a: any) => a.values.length))
+const { data: attributesRes } = await useAsyncData('products-attributes', () => apiFetch<any[]>('/api/attributes'))
+const filterableAttributes = computed(() => (attributesRes.value ?? []).filter((a: any) => a.values.length))
 
 const { page, sort, search, selectedValueIds, pageSize, products, total, loading, load, toggleValue }
   = useProductListing(() => undefined)

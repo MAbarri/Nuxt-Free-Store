@@ -3,8 +3,8 @@ const route = useRoute()
 const slug = route.params.slug as string
 const toast = useToast()
 
-const { data: productRes, pending } = await useAsyncData(`product-${slug}`, () => $fetch(`/api/products/${slug}`))
-const product = computed(() => productRes.value?.data)
+const { data: productRes, pending } = await useAsyncData(`product-${slug}`, () => apiFetch<any>(`/api/products/${slug}`))
+const product = computed(() => productRes.value)
 
 useHead({
   title: computed(() => product.value ? `${product.value.name} — Atelier` : 'Product — Atelier'),

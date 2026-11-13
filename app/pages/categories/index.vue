@@ -1,8 +1,8 @@
 <script setup lang="ts">
 useHead({ title: 'Categories — Atelier' })
 
-const { data: categoriesRes } = await useAsyncData('all-categories', () => $fetch('/api/categories'))
-const categories = computed(() => categoriesRes.value?.data ?? [])
+const { data: categoriesRes } = await useAsyncData('all-categories', () => apiFetch<any[]>('/api/categories'))
+const categories = computed(() => categoriesRes.value ?? [])
 </script>
 
 <template>

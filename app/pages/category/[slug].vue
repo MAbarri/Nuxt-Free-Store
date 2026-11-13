@@ -2,8 +2,8 @@
 const route = useRoute()
 const slug = route.params.slug as string
 
-const { data: categoryRes } = await useAsyncData(`category-${slug}`, () => $fetch(`/api/categories/${slug}`))
-const category = computed(() => categoryRes.value?.data)
+const { data: categoryRes } = await useAsyncData(`category-${slug}`, () => apiFetch<any>(`/api/categories/${slug}`))
+const category = computed(() => categoryRes.value)
 
 useHead({ title: computed(() => `${category.value?.name ?? 'Category'} — Atelier`) })
 
