@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { useDb } from '../utils/db'
 import { storeSettings, categories } from '../database/schema'
 import type { H3Event } from 'h3'
@@ -113,10 +113,17 @@ export const settingsService = {
   async set(event: H3Event, key: keyof StoreSettings, value: unknown): Promise<void> {
     const db = useDb(event)
     const now = new Date()
+    // Drizzle's `json` text-column mode only runs its own JSON.stringify when
+    // the value isn't exactly `null` — a top-level `null` (e.g. logoUrl: null,
+    // announcementBar: null) is instead bound as a raw SQL NULL, which then
+    // violates this column's NOT NULL constraint. Pre-serializing it ourselves
+    // sidesteps that: `sql\`${...}\`` embeds a plain string param ("null"),
+    // never touching the column's special-cased null handling.
+    const storedValue = value === null ? sql`${JSON.stringify(value)}` : value
     await db
       .insert(storeSettings)
-      .values({ key, value, updatedAt: now })
-      .onConflictDoUpdate({ target: storeSettings.key, set: { value, updatedAt: now } })
+      .values({ key, value: storedValue, updatedAt: now })
+      .onConflictDoUpdate({ target: storeSettings.key, set: { value: storedValue, updatedAt: now } })
   },
 
   /** Admin-facing partial update — writes only the keys provided. */
