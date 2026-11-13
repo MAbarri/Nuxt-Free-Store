@@ -27,4 +27,5 @@ export const settingsUpdateSchema = z.object({
   hero: heroSchema.optional(),
   promo: promoSchema.optional(),
   trustBadges: z.array(trustBadgeSchema).max(6).optional(),
+  announcementBar: z.string().trim().max(200).nullable().optional(),
 })

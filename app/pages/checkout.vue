@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Checkout — Atelier' })
+useHead({ title: 'Checkout — Atelier Élégance' })
 
 const toast = useToast()
 const { cart, refresh: refreshCart } = useCart()

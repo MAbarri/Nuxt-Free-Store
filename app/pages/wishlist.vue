@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Your wishlist — Atelier' })
+useHead({ title: 'Your wishlist — Atelier Élégance' })
 
 const { wishlist, refresh, removeItem } = useWishlist()
 await useAsyncData('wishlist-page', refresh)

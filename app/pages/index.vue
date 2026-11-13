@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Atelier — Thoughtfully made clothing' })
+useHead({ title: 'Atelier Élégance — Thoughtfully made clothing' })
 
 const { data: settingsRes } = await useAsyncData('home-settings', () => apiFetch<any>('/api/store-settings'))
 const settings = computed(() => settingsRes.value)

@@ -10,6 +10,7 @@ interface Settings {
   logoUrl: string | null
   accentColor: string
   defaultShippingFee: number
+  announcementBar: string | null
   hero: Hero
   promo: Promo
   trustBadges: TrustBadge[]
@@ -25,6 +26,7 @@ const form = reactive({
   logoUrl: null as string | null,
   accentColor: '#bb6540',
   defaultShippingFee: 0,
+  announcementBar: '' as string | null,
   hero: { title: '', subtitle: '', imageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
   promo: { title: '', subtitle: '' },
   trustBadges: [] as TrustBadge[],
@@ -39,6 +41,7 @@ async function load() {
     form.logoUrl = settings.logoUrl
     form.accentColor = settings.accentColor
     form.defaultShippingFee = settings.defaultShippingFee / 100
+    form.announcementBar = settings.announcementBar ?? ''
     form.hero = { ...settings.hero }
     form.promo = { ...settings.promo }
     form.trustBadges = settings.trustBadges.map(b => ({ ...b }))
@@ -62,6 +65,7 @@ async function save() {
         logoUrl: form.logoUrl,
         accentColor: form.accentColor,
         defaultShippingFee: Math.round(form.defaultShippingFee * 100),
+        announcementBar: form.announcementBar?.trim() || null,
         hero: form.hero,
         promo: form.promo,
         trustBadges: form.trustBadges.filter(b => b.label.trim()).map(b => ({ icon: b.icon || undefined, label: b.label })),
@@ -162,6 +166,9 @@ onMounted(load)
                 <input type="file" accept="image/*" :disabled="uploadingLogo" class="text-sm" @change="onLogoSelected">
               </label>
             </div>
+          </UFormField>
+          <UFormField label="Announcement bar" description="Shown as a thin bar above the header on every page. Leave empty to hide it.">
+            <UInput v-model="form.announcementBar" placeholder="Nouvelle collection · Découvrez votre prochain coup de cœur" class="w-full" />
           </UFormField>
         </form>
       </UCard>

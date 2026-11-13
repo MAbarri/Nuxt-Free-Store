@@ -7,7 +7,7 @@ const { data: productRes, pending } = await useAsyncData(`product-${slug}`, () =
 const product = computed(() => productRes.value)
 
 useHead({
-  title: computed(() => product.value ? `${product.value.name} — Atelier` : 'Product — Atelier'),
+  title: computed(() => product.value ? `${product.value.name} — Atelier Élégance` : 'Product — Atelier Élégance'),
   meta: [{ name: 'description', content: computed(() => product.value?.seoDescription ?? product.value?.shortDescription ?? '') }],
 })
 

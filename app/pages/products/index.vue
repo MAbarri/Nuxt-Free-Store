@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Shop — Atelier' })
+useHead({ title: 'Shop — Atelier Élégance' })
 
 const { data: categoriesRes } = await useAsyncData('products-categories', () => apiFetch<any[]>('/api/categories'))
 const categories = computed(() => categoriesRes.value ?? [])

@@ -4,7 +4,7 @@ const id = route.params.id as string
 
 const { data, pending, error } = await useAsyncData(`order-${id}`, () => apiFetch(`/api/orders/${id}`))
 
-useHead({ title: 'Order confirmed — Atelier' })
+useHead({ title: 'Order confirmed — Atelier Élégance' })
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Your cart — Atelier' })
+useHead({ title: 'Your cart — Atelier Élégance' })
 
 const { cart, refresh, updateQuantity, removeItem } = useCart()
 await useAsyncData('cart-page', refresh)
