@@ -29,6 +29,7 @@ see them.
 | Landing product pages (gap, not a numbered phase) | ✅ Done |
 | Currency switch to MAD + real product import (gap, not a numbered phase) | ✅ Done |
 | Storefront i18n: French/English/Arabic + RTL (gap, not a numbered phase) | ✅ Done |
+| Real web fonts for fr/en + Arabic pairing (gap, not a numbered phase) | ✅ Done |
 | 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
@@ -542,6 +543,44 @@ database has no translation columns/table for product content).
   add-to-cart → checkout flow renders translated form labels in all three
   languages, and `/admin/login` plus the post-login admin dashboard stay
   `lang="en" dir="ltr"` even with an `ar` locale cookie set.
+
+### Real web fonts for fr/en + Arabic pairing (gap, not a numbered phase) — ✅ done
+`SPEC.md` named Fraunces (display) + Inter (body) as the intended typefaces,
+but they were **never actually loaded** — `main.css` only referenced them by
+name with system fallbacks (`ui-serif, Georgia`/`ui-sans-serif, system-ui`),
+so every visitor had always been seeing Georgia/system-ui, not the intended
+fonts, the whole time. Also, system fonts render Arabic inconsistently
+across OSes/browsers with no real design intent behind them.
+
+- Added `@nuxt/fonts`, which downloads and self-hosts Google Fonts at build
+  time (no runtime calls to Google from the Cloudflare Worker — good for
+  both performance and not depending on an external network call on every
+  request). Explicitly configured in `nuxt.config.ts` under `fonts.families`
+  with `global: true` for all four families (safer than relying on the
+  module's static CSS-usage scan, since our font names are referenced only
+  through custom properties, not literal `font-family: 'X'` declarations).
+- **French/English**: Fraunces (headings, weights 400–700 + italics) and
+  Inter (body, weights 400–700) — now actually load, matching `SPEC.md`.
+- **Arabic pairing**: since Fraunces/Inter have no meaningful Arabic glyph
+  coverage, Arabic gets its own pair — **El Messiri** (headings) and
+  **Cairo** (body), both with the `arabic` Google Fonts subset. Chosen to
+  echo the Latin pairing's personality (El Messiri is a characterful
+  display face like Fraunces; Cairo is a clean neutral UI face like Inter),
+  not arbitrary picks.
+- Wired up in `app/assets/css/main.css` as `--font-display-ar`/
+  `--font-sans-ar` theme tokens, applied only under `html[lang="ar"]`
+  (scoped by attribute selector, so it activates/deactivates automatically
+  as the existing locale machinery flips `<html lang>` — see the i18n
+  section above). Admin is always `lang="en"` so it never receives the
+  Arabic fonts. Latin display tracking (`letter-spacing: -0.01em`) is reset
+  to `normal` for Arabic headings specifically, since negative tracking can
+  interfere with Arabic letterform joining.
+- Verified via build output: all four families produce real `@font-face`
+  rules with self-hosted `.woff2` files under `/_nuxt/fonts/` (not a Google
+  Fonts CDN link), and the `html[lang="ar"]` override rule is present in the
+  shipped CSS — checked in both local dev and the live production build,
+  including a direct fetch of one of the hashed font URLs returning
+  `content-type: font/woff2` with real byte content.
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further

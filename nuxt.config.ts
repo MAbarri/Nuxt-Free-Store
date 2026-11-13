@@ -6,10 +6,22 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
 
-  modules: ['@nuxt/ui', '@nuxtjs/i18n'],
+  modules: ['@nuxt/ui', '@nuxtjs/i18n', '@nuxt/fonts'],
 
   ui: {
     colorMode: false,
+  },
+
+  fonts: {
+    families: [
+      // French / English — editorial serif display + neutral grotesk body (see SPEC.md §3).
+      { name: 'Fraunces', provider: 'google', weights: [400, 500, 600, 700], styles: ['normal', 'italic'], subsets: ['latin', 'latin-ext'], global: true },
+      { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700], subsets: ['latin', 'latin-ext'], global: true },
+      // Arabic — paired display/body faces with proper Arabic glyph coverage
+      // (system fonts render Arabic inconsistently across platforms).
+      { name: 'El Messiri', provider: 'google', weights: [500, 600, 700], subsets: ['arabic', 'latin'], global: true },
+      { name: 'Cairo', provider: 'google', weights: [400, 500, 600, 700], subsets: ['arabic', 'latin'], global: true },
+    ],
   },
 
   i18n: {

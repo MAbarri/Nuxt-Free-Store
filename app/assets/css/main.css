@@ -10,6 +10,12 @@
   --font-display: 'Fraunces', ui-serif, Georgia, serif;
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
+  /* Arabic pairing — a characterful display face (El Messiri) echoing
+     Fraunces' personality, with a clean modern body face (Cairo) echoing
+     Inter's neutrality. Scoped to [lang="ar"] below. */
+  --font-display-ar: 'El Messiri', ui-serif, Tahoma, serif;
+  --font-sans-ar: 'Cairo', ui-sans-serif, Tahoma, sans-serif;
+
   /* "clay" — the placeholder accent color */
   --color-clay-50: #fbf4f0;
   --color-clay-100: #f6e5db;
@@ -39,6 +45,22 @@
 
   body {
     font-family: var(--font-sans);
+  }
+
+  /* Arabic script doesn't use Latin-style display faces or tracking —
+     negative letter-spacing breaks letterform joining — so swap both the
+     display and body fonts and reset tracking for the storefront in Arabic.
+     Admin is always lang="en" (see app/app.vue) so this never applies there. */
+  html[lang='ar'] body {
+    font-family: var(--font-sans-ar);
+  }
+
+  html[lang='ar'] h1,
+  html[lang='ar'] h2,
+  html[lang='ar'] h3,
+  html[lang='ar'] h4 {
+    font-family: var(--font-display-ar);
+    letter-spacing: normal;
   }
 }
 
