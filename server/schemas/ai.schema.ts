@@ -12,7 +12,7 @@ export const aiProductCopySchema = z.object({
 
 export const aiProductImagesSchema = z.object({
   imageDataUrl: dataUrlSchema,
-  sceneIds: z.array(z.string().trim().min(1)).min(1).max(6),
+  sceneIds: z.array(z.string().trim().min(1)).min(1).max(20),
   color: z.string().trim().min(1).max(60).optional(),
   stylingNotes: z.string().trim().min(1).max(200).optional(),
 })
@@ -21,6 +21,7 @@ export const aiLandingBlocksSchema = z.object({
   imageDataUrl: dataUrlSchema,
   productName: z.string().trim().min(1),
   sceneIds: z.array(z.string().trim().min(1)).max(3).optional(),
+  count: z.number().int().min(1).max(3).optional(),
 })
 
 export const aiTranslateLandingBlocksSchema = z.object({
@@ -55,7 +56,7 @@ export const aiProductCreateSchema = z.object({
   categoryIds: z.array(z.string().trim()).default([]),
   referenceImageDataUrl: dataUrlSchema,
   includeReferenceImage: z.boolean().default(true),
-  generatedImageDataUrls: z.array(dataUrlSchema).max(6).default([]),
+  generatedImageDataUrls: z.array(dataUrlSchema).max(20).default([]),
   layoutStyle: z.enum(['standard', 'landing']).default('landing'),
   landingBenefits: z.array(aiLandingBenefitSchema).max(6).optional().nullable(),
   landingBlocks: z.array(z.object({

@@ -29,6 +29,8 @@ export interface ImageScene {
   label: string
   /** Whether this scene features a model wearing the garment (vs. a detail-only shot) — styling notes only apply here. */
   hasModel: boolean
+  /** 'studio' = clean catalog shots; 'lifestyle' = in-context editorial scenes, used for diverse random picks (e.g. landing-page blocks). */
+  category: 'studio' | 'lifestyle'
   buildPrompt: (opts: { color?: string, stylingNotes?: string }) => string
 }
 
@@ -36,11 +38,14 @@ export interface ImageScene {
 // Every prompt repeats "exact same garment... keep color/pattern/design
 // identical" (via colorClause) — that's what keeps a generated carousel
 // looking like the same product across angles/settings, not a lookalike.
+// The lifestyle scenes deliberately span varied, generic settings (no real
+// landmarks) so repeated generations don't all look like the same two shots.
 export const IMAGE_SCENES: ImageScene[] = [
   {
     id: 'studio-front',
     label: 'Studio — Front view',
     hasModel: true,
+    category: 'studio',
     buildPrompt: ({ color, stylingNotes }) =>
       `Professional e-commerce product photo of the exact same garment shown in the reference image, front view, worn by a model, soft studio lighting, clean neutral background, editorial fashion catalog style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
   },
@@ -48,6 +53,7 @@ export const IMAGE_SCENES: ImageScene[] = [
     id: 'studio-back',
     label: 'Studio — Back view',
     hasModel: true,
+    category: 'studio',
     buildPrompt: ({ color, stylingNotes }) =>
       `Professional e-commerce product photo of the exact same garment shown in the reference image, back view, worn by a model, soft studio lighting, clean neutral background, editorial fashion catalog style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
   },
@@ -55,6 +61,7 @@ export const IMAGE_SCENES: ImageScene[] = [
     id: 'studio-detail',
     label: 'Studio — Detail close-up',
     hasModel: false,
+    category: 'studio',
     buildPrompt: ({ color }) =>
       `Close-up detail product photo of the exact same garment shown in the reference image, focused on fabric texture and stitching, soft studio lighting, shallow depth of field, no model.${colorClause(color)}`,
   },
@@ -62,6 +69,7 @@ export const IMAGE_SCENES: ImageScene[] = [
     id: 'lifestyle-casablanca-street',
     label: 'Lifestyle — Casablanca street',
     hasModel: true,
+    category: 'lifestyle',
     buildPrompt: ({ color, stylingNotes }) =>
       `Candid editorial street-style photo of a model wearing the exact same garment shown in the reference image, walking on a lively Casablanca street, Art Deco facades and tiled sidewalks in the background, palm trees, warm natural daylight, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
   },
@@ -69,8 +77,57 @@ export const IMAGE_SCENES: ImageScene[] = [
     id: 'lifestyle-casablanca-cafe',
     label: 'Lifestyle — Casablanca café',
     hasModel: true,
+    category: 'lifestyle',
     buildPrompt: ({ color, stylingNotes }) =>
       `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, seated at a Moroccan café terrace, brass table, a glass of mint tea nearby, mosaic tile details, warm natural light, relaxed and elegant mood.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-mall',
+    label: 'Lifestyle — Shopping mall',
+    hasModel: true,
+    category: 'lifestyle',
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, walking through a bright upscale shopping mall, polished floors and glass storefronts softly blurred in the background, shopping bags in hand, confident relaxed mood, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-car',
+    label: 'Lifestyle — Getting out of the car',
+    hasModel: true,
+    category: 'lifestyle',
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, captured mid-motion stepping out of a sleek parked car with the door open, urban street softly blurred in the background, natural daylight, dynamic fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-office',
+    label: 'Lifestyle — Office',
+    hasModel: true,
+    category: 'lifestyle',
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, standing in a bright modern office space, desks and large daylight-filled windows softly blurred in the background, confident professional mood, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-rooftop',
+    label: 'Lifestyle — Rooftop terrace',
+    hasModel: true,
+    category: 'lifestyle',
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, standing on a rooftop terrace at golden hour, a soft city skyline blurred in the background, warm sunset light, relaxed elegant mood, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-restaurant',
+    label: 'Lifestyle — Evening dinner',
+    hasModel: true,
+    category: 'lifestyle',
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, seated at an elegant restaurant table in the evening, warm ambient lighting, a softly blurred dining room in the background, sophisticated relaxed mood, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-park',
+    label: 'Lifestyle — Park walk',
+    hasModel: true,
+    category: 'lifestyle',
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, walking through a green park on a crisp day, trees and a paved path softly blurred in the background, soft natural daylight, casual elegant mood, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
   },
 ]
 
@@ -78,6 +135,13 @@ export function getImageScene(id: string): ImageScene {
   const scene = IMAGE_SCENES.find(s => s.id === id)
   if (!scene) throw createError({ statusCode: 422, statusMessage: `Unknown image scene: ${id}` })
   return scene
+}
+
+/** Randomly samples up to `count` distinct scene ids from the given category — used for default picks (e.g. landing blocks) so repeated generations don't always land on the same couple of scenes. */
+export function pickRandomSceneIds(category: ImageScene['category'], count: number): string[] {
+  const pool = IMAGE_SCENES.filter(s => s.category === category)
+  const shuffled = [...pool].sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, count).map(s => s.id)
 }
 
 export interface WizardLocaleContent {
@@ -89,8 +153,6 @@ export interface WizardLocaleContent {
   landingBenefits?: Array<{ icon?: string, text: string }> | null
   landingBlockCaptions?: Array<string | null> | null
 }
-
-const DEFAULT_LANDING_BLOCK_SCENES = ['lifestyle-casablanca-street', 'lifestyle-casablanca-cafe']
 
 export const aiService = {
   /**
@@ -156,9 +218,9 @@ export const aiService = {
     return { images, cost }
   },
 
-  /** Generates lifestyle photo blocks (image + AI-written French caption) for a Landing-style page, defaulting to the two Casablanca scenes. Not persisted — for review before saving. */
-  async generateLandingBlocks(event: H3Event, input: { imageDataUrl: string, productName: string, sceneIds?: string[] }) {
-    const sceneIds = input.sceneIds?.length ? input.sceneIds : DEFAULT_LANDING_BLOCK_SCENES
+  /** Generates lifestyle photo blocks (image + AI-written French caption) for a Landing-style page. Defaults to a random sample of distinct lifestyle scenes (so repeated generations don't always land on the same couple of settings) unless specific scene ids are given. Not persisted — for review before saving. */
+  async generateLandingBlocks(event: H3Event, input: { imageDataUrl: string, productName: string, sceneIds?: string[], count?: number }) {
+    const sceneIds = input.sceneIds?.length ? input.sceneIds : pickRandomSceneIds('lifestyle', input.count ?? 2)
     const blocks: Array<{ dataUrl: string, caption: string, sceneId: string }> = []
     let cost = 0
     for (const sceneId of sceneIds) {

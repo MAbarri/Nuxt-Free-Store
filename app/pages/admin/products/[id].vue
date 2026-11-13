@@ -344,10 +344,9 @@ async function openGenerateLandingBlocks() {
     const dataUrl = await fileToDataUrl(refBlob)
 
     landingBlocksGeneratingLabel.value = 'Generating lifestyle photos — this can take up to a minute…'
-    const defaultScenes = ['lifestyle-casablanca-street', 'lifestyle-casablanca-cafe'].slice(0, remaining)
     const result = await apiFetch<{ blocks: Array<{ dataUrl: string, caption: string, sceneId: string }>, cost: number }>(
       '/api/admin/ai/landing-blocks',
-      { method: 'POST', body: { imageDataUrl: dataUrl, productName: form.name, sceneIds: defaultScenes } },
+      { method: 'POST', body: { imageDataUrl: dataUrl, productName: form.name, count: Math.min(remaining, 3) } },
     )
     landingBlocksCost.value += result.cost
     reviewLandingBlocks.value = result.blocks.map(b => ({ dataUrl: b.dataUrl, caption: b.caption, sceneId: b.sceneId, regenerating: false }))
@@ -477,7 +476,7 @@ async function aiGenerateSeo() {
 
 // --- Generate more photos with AI (uses the first existing photo as reference) ---
 interface AiReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, sceneId: string }
-interface AiImageScene { id: string, label: string, hasModel: boolean }
+interface AiImageScene { id: string, label: string, hasModel: boolean, category: 'studio' | 'lifestyle' }
 const aiImagesModalOpen = ref(false)
 const aiImagesPhase = ref<'pick' | 'generating' | 'review'>('pick')
 const aiGeneratingLabel = ref('')
@@ -518,8 +517,13 @@ async function openAiImagesModal() {
     if (!aiImageScenes.value.length) {
       aiImageScenes.value = await apiFetch<AiImageScene[]>('/api/admin/ai/image-scenes')
     }
-    // Default selection: everything except the café scene.
-    aiSelectedSceneIds.value = aiImageScenes.value.filter(s => s.id !== 'lifestyle-casablanca-cafe').map(s => s.id)
+    // Default selection: all studio angles + one random lifestyle scene, to
+    // keep the default generation close to the previous "4 photos" behavior
+    // while varying which lifestyle setting gets used across products.
+    const studioIds = aiImageScenes.value.filter(s => s.category === 'studio').map(s => s.id)
+    const lifestyleIds = aiImageScenes.value.filter(s => s.category === 'lifestyle').map(s => s.id)
+    const randomLifestyleId = lifestyleIds[Math.floor(Math.random() * lifestyleIds.length)]
+    aiSelectedSceneIds.value = randomLifestyleId ? [...studioIds, randomLifestyleId] : studioIds
 
     const refBlob = await (await fetch(product.value.images[0].url)).blob()
     aiReferenceDataUrl.value = await fileToDataUrl(refBlob)

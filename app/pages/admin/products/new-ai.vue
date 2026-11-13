@@ -4,7 +4,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 interface Category { id: string, name: string }
 interface AttributeValue { id: string, value: string, swatchHex: string | null }
 interface Attribute { id: string, name: string, displayType: string, values: AttributeValue[] }
-interface ImageScene { id: string, label: string, hasModel: boolean }
+interface ImageScene { id: string, label: string, hasModel: boolean, category: 'studio' | 'lifestyle' }
 
 interface LandingBenefit { icon: string, text: string }
 interface LocaleContent {
@@ -39,9 +39,13 @@ async function loadLookups() {
     categories.value = cats
     attributes.value = attrs
     imageScenes.value = scenes
-    // Default selection: everything except the café scene, to keep the
-    // default generation close to the previous "4 photos" behavior.
-    selectedSceneIds.value = scenes.filter(s => s.id !== 'lifestyle-casablanca-cafe').map(s => s.id)
+    // Default selection: all studio angles + one random lifestyle scene, to
+    // keep the default generation close to the previous "4 photos" behavior
+    // while varying which lifestyle setting gets used across products.
+    const studioIds = scenes.filter(s => s.category === 'studio').map(s => s.id)
+    const lifestyleIds = scenes.filter(s => s.category === 'lifestyle').map(s => s.id)
+    const randomLifestyleId = lifestyleIds[Math.floor(Math.random() * lifestyleIds.length)]
+    selectedSceneIds.value = randomLifestyleId ? [...studioIds, randomLifestyleId] : studioIds
   }
   catch (e) {
     toast.add({ title: 'Failed to load categories/attributes', description: apiErrorMessage(e), color: 'error' })
