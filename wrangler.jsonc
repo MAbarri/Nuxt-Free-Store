@@ -18,7 +18,7 @@
     {
       "binding": "DB",
       "database_name": "fashion_store_db",
-      "database_id": "REPLACE_WITH_REAL_D1_DATABASE_ID",
+      "database_id": "dd874a4f-c00d-43b4-a59d-aa4e87a98e00",
       "migrations_dir": "server/database/migrations"
     }
   ],
@@ -33,7 +33,7 @@
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+      "id": "90c3043530b7445ea72262399db3fc52"
     }
   ],
 
