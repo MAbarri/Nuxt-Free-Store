@@ -4,6 +4,7 @@ import { shippingService } from './shipping.service'
 import { inventoryService } from './inventory.service'
 import { ordersRepository, type OrderItemInput } from '../repositories/orders.repository'
 import { ordersService } from './orders.service'
+import { analyticsService } from './analytics.service'
 import { productsRepository } from '../repositories/products.repository'
 import { variantsRepository } from '../repositories/variants.repository'
 import { resolveCustomerProfileId } from '../utils/customer'
@@ -142,6 +143,18 @@ export const checkoutService = {
 
     await cartService.clear(event)
 
+    // Fire-and-forget: trackPurchase never throws, and we don't want an
+    // analytics-provider hiccup to add latency to the checkout response.
+    void analyticsService.trackPurchase(event, {
+      orderId,
+      total,
+      currency: 'MAD',
+      productIds: cart.items.map(item => item.productId),
+      numItems: cart.items.reduce((sum, item) => sum + item.quantity, 0),
+      email: input.email || null,
+      phone: input.phone,
+    })
+
     return ordersService.getDetail(event, orderId)
   },
 
@@ -223,6 +236,16 @@ export const checkoutService = {
         cause: error,
       })
     }
+
+    void analyticsService.trackPurchase(event, {
+      orderId,
+      total,
+      currency: 'MAD',
+      productIds: [product.id],
+      numItems: input.quantity,
+      email: input.email || null,
+      phone: input.phone,
+    })
 
     return ordersService.getDetail(event, orderId)
   },

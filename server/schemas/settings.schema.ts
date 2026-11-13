@@ -18,6 +18,12 @@ const trustBadgeSchema = z.object({
   label: z.string().trim().min(1),
 })
 
+const analyticsSchema = z.object({
+  gaMeasurementId: z.string().trim().min(1).max(40).nullable().optional(),
+  fbPixelId: z.string().trim().min(1).max(40).nullable().optional(),
+  fbConversionsApiEnabled: z.boolean().optional(),
+})
+
 export const settingsUpdateSchema = z.object({
   storeName: z.string().trim().min(1).optional(),
   tagline: z.string().trim().min(1).optional(),
@@ -28,4 +34,5 @@ export const settingsUpdateSchema = z.object({
   promo: promoSchema.optional(),
   trustBadges: z.array(trustBadgeSchema).max(6).optional(),
   announcementBar: z.string().trim().max(200).nullable().optional(),
+  analytics: analyticsSchema.optional(),
 })

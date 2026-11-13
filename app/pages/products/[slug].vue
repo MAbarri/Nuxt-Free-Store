@@ -20,12 +20,18 @@ const adding = ref(false)
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(product)
 
 const { addItem: addCartItem } = useCart()
+const { trackViewContent, trackAddToCart } = useAnalytics()
+
+watch(product, (p) => {
+  if (p) trackViewContent({ id: p.id, name: p.name, value: displayPrice.value / 100 })
+}, { immediate: true })
 
 async function addToCart() {
   if (!selectedVariant.value || !product.value) return
   adding.value = true
   try {
     await addCartItem(product.value.id, selectedVariant.value.id, quantity.value)
+    trackAddToCart({ id: product.value.id, name: product.value.name, value: displayPrice.value / 100, quantity: quantity.value })
     toast.add({ title: t('product.addedToCart'), color: 'success' })
   }
   catch (e) {

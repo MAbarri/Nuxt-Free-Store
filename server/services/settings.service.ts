@@ -28,6 +28,15 @@ const DEFAULTS = {
     { icon: '↗', label: 'Livraison partout au Maroc' },
     { icon: '↺', label: 'Échange selon conditions' },
   ] as Array<{ icon?: string, label: string }>,
+  analytics: {
+    // Public-safe tracking ids, shown in the storefront's HTML either way —
+    // fine to store alongside the rest of the settings. The Facebook
+    // Conversion API access token is sensitive and lives as a Cloudflare
+    // secret instead (see server/types/env.d.ts), never in this table.
+    gaMeasurementId: null as string | null,
+    fbPixelId: null as string | null,
+    fbConversionsApiEnabled: false,
+  },
 }
 
 export type StoreSettings = typeof DEFAULTS

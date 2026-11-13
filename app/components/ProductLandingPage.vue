@@ -23,13 +23,15 @@ const form = reactive({
 
 const submitting = ref(false)
 const submitError = ref('')
+const { trackInitiateCheckout, trackPurchase } = useAnalytics()
 
 async function submitOrder() {
   if (!selectedVariant.value || !props.product) return
   submitting.value = true
   submitError.value = ''
+  trackInitiateCheckout({ value: (displayPrice.value * quantity.value) / 100, contentIds: [props.product.id], numItems: quantity.value })
   try {
-    const order = await apiFetch<{ id: string }>('/api/checkout/direct', {
+    const order = await apiFetch<{ id: string, total: number }>('/api/checkout/direct', {
       method: 'POST',
       body: {
         productId: props.product.id,
@@ -42,6 +44,7 @@ async function submitOrder() {
         deliveryInstructions: form.deliveryInstructions || undefined,
       },
     })
+    trackPurchase({ orderId: order.id, value: order.total / 100, contentIds: [props.product.id], numItems: quantity.value })
     await navigateTo(`/order-confirmation/${order.id}`)
   }
   catch (e) {

@@ -6,6 +6,15 @@ const toast = useToast()
 const { cart, refresh: refreshCart } = useCart()
 await useAsyncData('checkout-cart', refreshCart)
 
+const { trackInitiateCheckout, trackPurchase } = useAnalytics()
+if (cart.value.items.length) {
+  trackInitiateCheckout({
+    value: cart.value.subtotal / 100,
+    contentIds: cart.value.items.map(i => i.productId),
+    numItems: cart.value.items.reduce((sum, i) => sum + i.quantity, 0),
+  })
+}
+
 const form = reactive({
   fullName: '',
   phone: '',
@@ -51,7 +60,16 @@ async function submit() {
   submitting.value = true
   submitError.value = ''
   try {
-    const order = await apiFetch<{ id: string }>('/api/checkout', { method: 'POST', body: { ...form, email: form.email || undefined } })
+    const order = await apiFetch<{ id: string, total: number, items: Array<{ productId: string | null, quantity: number }> }>(
+      '/api/checkout',
+      { method: 'POST', body: { ...form, email: form.email || undefined } },
+    )
+    trackPurchase({
+      orderId: order.id,
+      value: order.total / 100,
+      contentIds: order.items.map(i => i.productId).filter((id): id is string => !!id),
+      numItems: order.items.reduce((sum, i) => sum + i.quantity, 0),
+    })
     await refreshCart()
     await navigateTo(`/order-confirmation/${order.id}`)
   }

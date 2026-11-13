@@ -4,6 +4,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 interface Hero { title: string, subtitle: string, imageUrl: string | null, ctaLabel: string, ctaHref: string }
 interface Promo { title: string, subtitle: string }
 interface TrustBadge { icon?: string, label: string }
+interface Analytics { gaMeasurementId: string | null, fbPixelId: string | null, fbConversionsApiEnabled: boolean }
 interface SettingsTranslation {
   tagline?: string | null
   announcementBar?: string | null
@@ -21,6 +22,7 @@ interface Settings {
   hero: Hero
   promo: Promo
   trustBadges: TrustBadge[]
+  analytics: Analytics
   translations?: Partial<Record<'en' | 'ar', SettingsTranslation | null>>
 }
 
@@ -41,6 +43,7 @@ const form = reactive({
   hero: { title: '', subtitle: '', imageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
   promo: { title: '', subtitle: '' },
   trustBadges: [] as TrustBadge[],
+  analytics: { gaMeasurementId: null, fbPixelId: null, fbConversionsApiEnabled: false } as Analytics,
 })
 
 // --- Translations (English/Arabic — French is the form above) ---
@@ -93,6 +96,7 @@ async function load() {
     form.hero = { ...settings.hero }
     form.promo = { ...settings.promo }
     form.trustBadges = settings.trustBadges.map(b => ({ ...b }))
+    form.analytics = { ...settings.analytics }
 
     applyTranslationToForm('en', settings.translations?.en)
     applyTranslationToForm('ar', settings.translations?.ar)
@@ -120,6 +124,11 @@ async function save() {
         hero: form.hero,
         promo: form.promo,
         trustBadges: form.trustBadges.filter(b => b.label.trim()).map(b => ({ icon: b.icon || undefined, label: b.label })),
+        analytics: {
+          gaMeasurementId: form.analytics.gaMeasurementId?.trim() || null,
+          fbPixelId: form.analytics.fbPixelId?.trim() || null,
+          fbConversionsApiEnabled: form.analytics.fbConversionsApiEnabled,
+        },
       },
     })
     toast.add({ title: 'Settings saved', color: 'success' })
@@ -290,6 +299,28 @@ onMounted(load)
         <template #header><p class="font-medium">Shipping default</p></template>
         <UFormField label="Default shipping fee (DH)" description="Used when no shipping zones/rates are configured yet.">
           <UInputNumber v-model="form.defaultShippingFee" :min="0" :step="1" :step-snapping="false" class="w-full" />
+        </UFormField>
+      </UCard>
+
+      <UCard class="lg:col-span-2">
+        <template #header><p class="font-medium">Analytics</p></template>
+        <p class="text-sm text-stone-500">
+          Google Analytics and Facebook Pixel load on the storefront only (never in /admin) once their id is set below.
+        </p>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
+          <UFormField label="Google Analytics 4 measurement ID" description="Looks like G-XXXXXXXXXX. Leave empty to disable GA4.">
+            <UInput v-model="form.analytics.gaMeasurementId" placeholder="G-XXXXXXXXXX" class="w-full" />
+          </UFormField>
+          <UFormField label="Facebook Pixel ID" description="Numeric id from Meta Events Manager. Leave empty to disable the Pixel.">
+            <UInput v-model="form.analytics.fbPixelId" placeholder="123456789012345" class="w-full" />
+          </UFormField>
+        </div>
+        <UFormField class="mt-4">
+          <UCheckbox
+            v-model="form.analytics.fbConversionsApiEnabled"
+            label="Enable server-side Facebook Conversion API"
+            description="Sends a Purchase event straight from our server for every order, in addition to the browser Pixel — more reliable since it isn't affected by ad blockers. Also requires the FB_CONVERSIONS_ACCESS_TOKEN secret to be set (see docs/DEPLOYMENT.md); it quietly does nothing until that's configured, even if enabled here."
+          />
         </UFormField>
       </UCard>
 

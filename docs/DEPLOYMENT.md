@@ -59,6 +59,12 @@ never committed to `wrangler.jsonc`. Currently in use:
   and locally via a `.dev.vars` entry (gitignored, see `.dev.vars` in the
   repo root). Without it, every AI endpoint returns a clean 500 rather than
   crashing, but none of the AI features work.
+- `FB_CONVERSIONS_ACCESS_TOKEN` — optional. Enables server-side Facebook
+  Conversion API `Purchase` events (Settings → Analytics in the admin also
+  needs "Enable server-side Conversion API" turned on, and a Facebook Pixel
+  ID set). Get the token from Meta Events Manager → your Pixel → Settings →
+  Conversions API → "Generate access token". Without it, Conversion API
+  calls simply no-op; checkout and the client-side Pixel are unaffected.
 
 ## Manual fallback
 

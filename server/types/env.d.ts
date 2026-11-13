@@ -10,4 +10,9 @@ interface Env {
   // and a .dev.vars entry (gitignored) locally. Powers the AI product
   // creation wizard and catalog translation features.
   OPENROUTER_API_KEY: string
+  // Secret, optional — set via `wrangler secret put FB_CONVERSIONS_ACCESS_TOKEN`
+  // in production, and a .dev.vars entry (gitignored) locally, once you have a
+  // Facebook Conversion API access token. Server-side Purchase event tracking
+  // simply no-ops (never breaks checkout) while this is unset.
+  FB_CONVERSIONS_ACCESS_TOKEN?: string
 }
