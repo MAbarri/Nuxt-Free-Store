@@ -52,9 +52,6 @@ async function load() {
 function variantLabel(variant: VariantRow) {
   return variant.attributes.map(a => `${a.attributeName}: ${a.value}`).join(' / ') || '—'
 }
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
 function stockColor(stock: number) {
   if (stock <= 0) return 'error'
   if (stock <= 5) return 'warning'

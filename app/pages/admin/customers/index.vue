@@ -36,10 +36,6 @@ async function load() {
   }
 }
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 watch(page, load)
 onMounted(load)
 </script>

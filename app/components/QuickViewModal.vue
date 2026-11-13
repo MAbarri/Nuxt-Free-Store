@@ -20,9 +20,6 @@ watch([() => props.slug, open], ([, isOpen]) => {
   if (isOpen) load()
 })
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
 </script>
 
 <template>

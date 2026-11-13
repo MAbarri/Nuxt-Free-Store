@@ -49,7 +49,7 @@ export const ordersRepository = {
       subtotal: input.subtotal,
       shippingFee: input.shippingFee,
       total: input.total,
-      currency: 'USD',
+      currency: 'MAD',
       paymentMethod: 'cod',
       paymentStatus: 'unpaid',
       status: 'pending_confirmation',

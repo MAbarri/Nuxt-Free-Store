@@ -170,10 +170,6 @@ async function removeRate(rate: Rate) {
   }
 }
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 onMounted(load)
 </script>
 

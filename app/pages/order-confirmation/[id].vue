@@ -6,10 +6,6 @@ const { data, pending, error } = await useAsyncData(`order-${id}`, () => apiFetc
 
 useHead({ title: 'Order confirmed — Atelier' })
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
 }

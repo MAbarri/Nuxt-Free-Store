@@ -4,10 +4,6 @@ useHead({ title: 'Your cart — Atelier' })
 const { cart, refresh, updateQuantity, removeItem } = useCart()
 await useAsyncData('cart-page', refresh)
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 const updating = ref<string | null>(null)
 async function changeQuantity(itemId: string, quantity: number) {
   updating.value = itemId

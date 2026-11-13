@@ -29,10 +29,6 @@ async function load() {
   }
 }
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }

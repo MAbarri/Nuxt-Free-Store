@@ -42,10 +42,6 @@ async function load() {
   }
 }
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 const statusColor: Record<ProductRow['status'], string> = {
   draft: 'neutral',
   active: 'success',

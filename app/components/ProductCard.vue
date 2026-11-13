@@ -14,10 +14,6 @@ interface ProductCardDto {
 
 defineProps<{ product: ProductCardDto }>()
 const emit = defineEmits<{ quickview: [slug: string] }>()
-
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
 </script>
 
 <template>

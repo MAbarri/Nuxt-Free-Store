@@ -4,9 +4,6 @@ useHead({ title: 'Your wishlist — Atelier' })
 const { wishlist, refresh, removeItem } = useWishlist()
 await useAsyncData('wishlist-page', refresh)
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
 </script>
 
 <template>

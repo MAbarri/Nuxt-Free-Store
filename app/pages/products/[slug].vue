@@ -18,10 +18,6 @@ const adding = ref(false)
 
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(product)
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 const { addItem: addCartItem } = useCart()
 
 async function addToCart() {

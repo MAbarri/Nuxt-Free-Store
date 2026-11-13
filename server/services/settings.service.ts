@@ -20,9 +20,9 @@ const DEFAULTS = {
     subtitle: 'Pay when your order arrives — no card required.',
   },
   trustBadges: [
-    { icon: '◇', label: 'Cash on delivery' },
-    { icon: '↗', label: 'Nationwide shipping' },
-    { icon: '↺', label: 'Easy exchanges' },
+    { icon: '◇', label: 'Paiement à la livraison' },
+    { icon: '↗', label: 'Livraison partout au Maroc' },
+    { icon: '↺', label: 'Échange selon conditions' },
   ] as Array<{ icon?: string, label: string }>,
 }
 

@@ -9,10 +9,6 @@ const quantity = ref(1)
 const productRef = computed(() => props.product)
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(productRef)
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 const { data: settingsRes } = await useAsyncData('landing-store-settings', () => $fetch('/api/store-settings'))
 const trustBadges = computed(() => settingsRes.value?.data?.trustBadges ?? [])
 
@@ -49,7 +45,7 @@ async function submitOrder() {
   }
   catch (e) {
     submitError.value = apiErrorMessage(e)
-    toast.add({ title: 'Could not place order', description: submitError.value, color: 'error' })
+    toast.add({ title: 'Impossible de passer la commande', description: submitError.value, color: 'error' })
   }
   finally {
     submitting.value = false
@@ -145,47 +141,47 @@ function scrollToOrderForm() {
       class="mt-3 text-sm text-stone-500 underline"
       @click="sizeGuideOpen = true"
     >
-      Size guide
+      Guide des tailles
     </button>
 
     <div class="mt-6 flex items-center gap-3">
       <UInputNumber v-model="quantity" :min="1" :max="selectedVariant?.stock ?? 1" class="w-28" />
       <p class="text-sm" :class="inStock ? 'text-green-700' : 'text-stone-400'">
         <UIcon :name="inStock ? 'i-lucide-check-circle' : 'i-lucide-x-circle'" class="mr-1 align-[-2px]" />
-        {{ inStock ? `In stock (${selectedVariant?.stock} available)` : 'Out of stock' }}
+        {{ inStock ? `En stock (${selectedVariant?.stock} disponibles)` : 'Rupture de stock' }}
       </p>
     </div>
 
     <!-- Embedded direct-order form: this replaces cart/checkout for Landing-style products -->
     <div ref="orderFormEl" class="mt-8 rounded-lg border border-stone-200 bg-white p-6">
       <h2 class="text-sm font-medium uppercase tracking-wide text-stone-500">
-        Order information
+        Informations de commande
       </h2>
       <form class="mt-4 space-y-4" @submit.prevent="submitOrder">
-        <UFormField label="Full name">
+        <UFormField label="Nom complet">
           <UInput v-model="form.fullName" required class="w-full" />
         </UFormField>
-        <UFormField label="Phone number">
+        <UFormField label="Téléphone">
           <UInput v-model="form.phone" required class="w-full" />
         </UFormField>
-        <UFormField label="City">
+        <UFormField label="Ville">
           <UInput v-model="form.city" required class="w-full" />
         </UFormField>
-        <UFormField label="Full delivery address">
+        <UFormField label="Adresse de livraison">
           <UTextarea v-model="form.addressLine" required :rows="2" class="w-full" />
         </UFormField>
-        <UFormField label="Delivery instructions (optional)">
+        <UFormField label="Instructions de livraison (facultatif)">
           <UTextarea v-model="form.deliveryInstructions" :rows="2" class="w-full" />
         </UFormField>
 
         <UButton type="submit" size="xl" block :disabled="!inStock" :loading="submitting">
-          Order now — Cash on delivery
+          Commander — Paiement à la livraison
         </UButton>
         <p v-if="submitError" class="text-center text-sm text-red-600">
           {{ submitError }}
         </p>
         <p class="text-center text-xs text-stone-400">
-          Delivery fees are confirmed when your order is reviewed. Pay with cash when it arrives — no card required.
+          Les frais de livraison sont confirmés lors de la validation de votre commande. Payez en espèces à la réception — aucune carte requise.
         </p>
       </form>
     </div>
@@ -193,7 +189,7 @@ function scrollToOrderForm() {
     <!-- Benefits -->
     <section v-if="product.landingBenefits?.length" class="mt-16">
       <h2 class="font-display text-2xl">
-        Why you'll love it
+        Pourquoi vous allez l'aimer
       </h2>
       <ul class="mt-6 space-y-4">
         <li v-for="(benefit, i) in product.landingBenefits" :key="i" class="flex items-start gap-3 text-stone-700">
@@ -238,7 +234,7 @@ function scrollToOrderForm() {
             </p>
           </div>
           <UButton size="lg" :disabled="!inStock" @click="scrollToOrderForm">
-            Order now
+            Commander
           </UButton>
         </div>
       </div>

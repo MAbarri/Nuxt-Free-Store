@@ -14,10 +14,6 @@ const form = reactive({
   deliveryInstructions: '',
 })
 
-function formatPrice(cents: number) {
-  return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-}
-
 const quote = ref<{ subtotal: number, shippingFee: number, total: number, freeShippingApplied: boolean } | null>(null)
 const quoteError = ref('')
 const quoting = ref(false)
