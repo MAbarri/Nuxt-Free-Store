@@ -275,6 +275,119 @@ async function onBlockImageSelected(e: Event, index: number) {
   }
 }
 
+// --- Generate benefits with AI (saves immediately, still editable/savable afterward) ---
+const generatingBenefits = ref(false)
+async function aiGenerateBenefits() {
+  generatingBenefits.value = true
+  try {
+    const result = await apiFetch<{ benefits: LandingBenefit[], cost: number }>(
+      `/api/admin/products/${productId}/ai-generate-landing-benefits`,
+      { method: 'POST', body: {} },
+    )
+    form.landingBenefits = result.benefits.map(b => ({ ...b }))
+    toast.add({ title: 'Benefits generated', description: `AI cost: $${result.cost.toFixed(4)} — review and save`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to generate benefits', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    generatingBenefits.value = false
+  }
+}
+
+// --- Generate lifestyle photo blocks with AI (uses the first existing photo as reference) ---
+interface ReviewLandingBlock { dataUrl: string, caption: string, sceneId: string, regenerating: boolean }
+const landingBlocksModalOpen = ref(false)
+const landingBlocksPhase = ref<'generating' | 'review'>('generating')
+const landingBlocksGeneratingLabel = ref('')
+const landingBlocksCost = ref(0)
+const reviewLandingBlocks = ref<ReviewLandingBlock[]>([])
+const savingLandingBlocks = ref(false)
+
+async function openGenerateLandingBlocks() {
+  if (!product.value?.images.length) {
+    toast.add({ title: 'Upload at least one photo first', description: 'AI needs an existing product photo to generate lifestyle shots from.', color: 'warning' })
+    return
+  }
+  const remaining = 3 - form.landingBlocks.length
+  if (remaining <= 0) return
+
+  landingBlocksModalOpen.value = true
+  landingBlocksPhase.value = 'generating'
+  landingBlocksCost.value = 0
+  reviewLandingBlocks.value = []
+  landingBlocksGeneratingLabel.value = 'Preparing reference photo…'
+  try {
+    const refBlob = await (await fetch(product.value.images[0].url)).blob()
+    const dataUrl = await fileToDataUrl(refBlob)
+
+    landingBlocksGeneratingLabel.value = 'Generating lifestyle photos — this can take up to a minute…'
+    const defaultScenes = ['lifestyle-casablanca-street', 'lifestyle-casablanca-cafe'].slice(0, remaining)
+    const result = await apiFetch<{ blocks: Array<{ dataUrl: string, caption: string, sceneId: string }>, cost: number }>(
+      '/api/admin/ai/landing-blocks',
+      { method: 'POST', body: { imageDataUrl: dataUrl, productName: form.name, sceneIds: defaultScenes } },
+    )
+    landingBlocksCost.value += result.cost
+    reviewLandingBlocks.value = result.blocks.map(b => ({ dataUrl: b.dataUrl, caption: b.caption, sceneId: b.sceneId, regenerating: false }))
+    landingBlocksPhase.value = 'review'
+  }
+  catch (e) {
+    toast.add({ title: 'Generation failed', description: apiErrorMessage(e), color: 'error' })
+    landingBlocksModalOpen.value = false
+  }
+}
+
+async function regenerateLandingBlock(block: ReviewLandingBlock) {
+  if (!product.value?.images.length) return
+  block.regenerating = true
+  try {
+    const refBlob = await (await fetch(product.value.images[0].url)).blob()
+    const dataUrl = await fileToDataUrl(refBlob)
+    const result = await apiFetch<{ blocks: Array<{ dataUrl: string, caption: string, sceneId: string }>, cost: number }>(
+      '/api/admin/ai/landing-blocks',
+      { method: 'POST', body: { imageDataUrl: dataUrl, productName: form.name, sceneIds: [block.sceneId] } },
+    )
+    landingBlocksCost.value += result.cost
+    if (result.blocks[0]) {
+      block.dataUrl = result.blocks[0].dataUrl
+      block.caption = result.blocks[0].caption
+    }
+  }
+  catch (e) {
+    toast.add({ title: 'Regeneration failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    block.regenerating = false
+  }
+}
+
+function removeReviewLandingBlock(block: ReviewLandingBlock) {
+  reviewLandingBlocks.value = reviewLandingBlocks.value.filter(b => b !== block)
+}
+
+async function saveLandingBlocks() {
+  if (!reviewLandingBlocks.value.length) {
+    landingBlocksModalOpen.value = false
+    return
+  }
+  savingLandingBlocks.value = true
+  try {
+    await apiFetch(`/api/admin/products/${productId}/ai-landing-blocks`, {
+      method: 'POST',
+      body: { blocks: reviewLandingBlocks.value.map(b => ({ imageDataUrl: b.dataUrl, caption: b.caption })) },
+    })
+    landingBlocksModalOpen.value = false
+    await load()
+    toast.add({ title: 'Lifestyle blocks added', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save blocks', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    savingLandingBlocks.value = false
+  }
+}
+
 async function aiTranslateLocale(locale: TranslatableLocale) {
   translating.value = locale
   try {
@@ -675,9 +788,14 @@ onMounted(load)
             <p class="text-sm font-medium">
               Benefits ("why you'll love it")
             </p>
-            <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.landingBenefits.length >= 6" @click="addBenefit">
-              Add benefit
-            </UButton>
+            <div class="flex gap-2">
+              <UButton size="xs" variant="soft" icon="i-lucide-sparkles" :loading="generatingBenefits" @click="aiGenerateBenefits">
+                Generate with AI
+              </UButton>
+              <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.landingBenefits.length >= 6" @click="addBenefit">
+                Add benefit
+              </UButton>
+            </div>
           </div>
           <p v-if="!form.landingBenefits.length" class="mt-2 text-sm text-stone-400">
             No benefits yet.
@@ -694,9 +812,18 @@ onMounted(load)
             <p class="text-sm font-medium">
               Lifestyle photo blocks
             </p>
-            <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.landingBlocks.length >= 3" @click="addBlock">
-              Add block
-            </UButton>
+            <div class="flex gap-2">
+              <UButton
+                size="xs" variant="soft" icon="i-lucide-sparkles"
+                :disabled="form.landingBlocks.length >= 3"
+                @click="openGenerateLandingBlocks"
+              >
+                Generate with AI
+              </UButton>
+              <UButton size="xs" variant="soft" icon="i-lucide-plus" :disabled="form.landingBlocks.length >= 3" @click="addBlock">
+                Add block
+              </UButton>
+            </div>
           </div>
           <p v-if="!form.landingBlocks.length" class="mt-2 text-sm text-stone-400">
             No lifestyle blocks yet.
@@ -905,6 +1032,42 @@ onMounted(load)
             <UButton variant="ghost" color="neutral" @click="aiImagesPhase = 'pick'">Back</UButton>
             <UButton :loading="aiSavingImages" :disabled="!aiReviewImages.length" @click="saveAiImages">
               Add {{ aiReviewImages.length }} photo{{ aiReviewImages.length === 1 ? '' : 's' }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="landingBlocksModalOpen" title="Generate lifestyle photo blocks with AI" :ui="{ content: 'sm:max-w-2xl' }">
+      <template #body>
+        <div v-if="landingBlocksPhase === 'generating'" class="flex items-center gap-3 py-10">
+          <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
+          <p class="text-sm text-stone-600">{{ landingBlocksGeneratingLabel }}</p>
+        </div>
+        <div v-else>
+          <p class="text-sm text-stone-500">
+            Generated from this product's first photo. Review, regenerate, or remove before saving.
+            AI cost so far: ${{ landingBlocksCost.toFixed(4) }}
+          </p>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <div v-for="block in reviewLandingBlocks" :key="block.sceneId" class="rounded-md border border-stone-200 p-3">
+              <div class="product-media relative aspect-[3/4] rounded-md">
+                <img :src="block.dataUrl" alt="" class="h-full w-full object-cover">
+                <div v-if="block.regenerating" class="absolute inset-0 flex items-center justify-center bg-white/70">
+                  <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
+                </div>
+              </div>
+              <UInput v-model="block.caption" class="mt-2 w-full" placeholder="Caption…" />
+              <div class="mt-2 flex justify-center gap-1">
+                <UButton size="xs" variant="soft" icon="i-lucide-refresh-cw" :disabled="block.regenerating" @click="regenerateLandingBlock(block)" />
+                <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeReviewLandingBlock(block)" />
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="landingBlocksModalOpen = false">Cancel</UButton>
+            <UButton :loading="savingLandingBlocks" :disabled="!reviewLandingBlocks.length" @click="saveLandingBlocks">
+              Add {{ reviewLandingBlocks.length }} block{{ reviewLandingBlocks.length === 1 ? '' : 's' }}
             </UButton>
           </div>
         </div>

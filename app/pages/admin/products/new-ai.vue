@@ -6,15 +6,17 @@ interface AttributeValue { id: string, value: string, swatchHex: string | null }
 interface Attribute { id: string, name: string, displayType: string, values: AttributeValue[] }
 interface ImageScene { id: string, label: string, hasModel: boolean }
 
+interface LandingBenefit { icon: string, text: string }
 interface LocaleContent {
   name: string
   shortDescription: string
   description: string
   seoTitle: string
   seoDescription: string
+  landingBenefits: LandingBenefit[]
 }
 function emptyLocaleContent(): LocaleContent {
-  return { name: '', shortDescription: '', description: '', seoTitle: '', seoDescription: '' }
+  return { name: '', shortDescription: '', description: '', seoTitle: '', seoDescription: '', landingBenefits: [] }
 }
 
 const toast = useToast()
@@ -72,6 +74,7 @@ const inputForm = reactive({
   basePrice: 0,
   compareAtPrice: null as number | null,
   categoryIds: [] as string[],
+  layoutStyle: 'landing' as 'standard' | 'landing',
 })
 
 // --- Photo scenes + optional color/styling modifiers ---
@@ -163,14 +166,24 @@ const generatingLabel = ref('')
 const generationCost = ref(0)
 
 interface ReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, sceneId: string }
+interface ReviewLandingBlock { dataUrl: string, sceneId: string, kept: boolean, regenerating: boolean, captions: { fr: string, en: string, ar: string } }
 const review = reactive({
   fr: emptyLocaleContent(),
   en: emptyLocaleContent(),
   ar: emptyLocaleContent(),
   images: [] as ReviewImage[],
+  landingBlocks: [] as ReviewLandingBlock[],
   includeReference: true,
 })
 const activeReviewLocale = ref<'fr' | 'en' | 'ar'>('fr')
+
+function addLandingBenefit(locale: 'fr' | 'en' | 'ar') {
+  if (review[locale].landingBenefits.length >= 6) return
+  review[locale].landingBenefits.push({ icon: '', text: '' })
+}
+function removeLandingBenefit(locale: 'fr' | 'en' | 'ar', index: number) {
+  review[locale].landingBenefits.splice(index, 1)
+}
 
 async function generate() {
   if (!referenceImageDataUrl.value) return
@@ -192,9 +205,9 @@ async function generate() {
       },
     )
     generationCost.value += copy.cost
-    review.fr = { ...copy.fr }
-    review.en = copy.en ? { ...copy.en } : emptyLocaleContent()
-    review.ar = copy.ar ? { ...copy.ar } : emptyLocaleContent()
+    review.fr = { ...emptyLocaleContent(), ...copy.fr }
+    review.en = copy.en ? { ...emptyLocaleContent(), ...copy.en } : emptyLocaleContent()
+    review.ar = copy.ar ? { ...emptyLocaleContent(), ...copy.ar } : emptyLocaleContent()
 
     generatingLabel.value = `Generating ${selectedSceneIds.value.length} product photo${selectedSceneIds.value.length > 1 ? 's' : ''} — this can take up to a minute…`
     const imagesResult = await apiFetch<{ images: Array<{ dataUrl: string, sceneId: string }>, cost: number }>(
@@ -212,6 +225,38 @@ async function generate() {
     generationCost.value += imagesResult.cost
     review.images = imagesResult.images.map(img => ({ dataUrl: img.dataUrl, kept: true, regenerating: false, sceneId: img.sceneId }))
     review.includeReference = true
+
+    if (inputForm.layoutStyle === 'landing') {
+      generatingLabel.value = 'Generating lifestyle photo blocks for the landing page…'
+      const blocksResult = await apiFetch<{ blocks: Array<{ dataUrl: string, caption: string, sceneId: string }>, cost: number }>(
+        '/api/admin/ai/landing-blocks',
+        { method: 'POST', body: { imageDataUrl: referenceImageDataUrl.value, productName: review.fr.name } },
+      )
+      generationCost.value += blocksResult.cost
+
+      generatingLabel.value = 'Translating lifestyle captions…'
+      const captionsFr = blocksResult.blocks.map(b => b.caption)
+      const translated = await apiFetch<{ translations: { en: Array<string | null>, ar: Array<string | null> }, cost: number }>(
+        '/api/admin/ai/translate-landing-blocks',
+        { method: 'POST', body: { captions: captionsFr } },
+      )
+      generationCost.value += translated.cost
+
+      review.landingBlocks = blocksResult.blocks.map((b, i) => ({
+        dataUrl: b.dataUrl,
+        sceneId: b.sceneId,
+        kept: true,
+        regenerating: false,
+        captions: {
+          fr: b.caption,
+          en: translated.translations.en[i] ?? b.caption,
+          ar: translated.translations.ar[i] ?? b.caption,
+        },
+      }))
+    }
+    else {
+      review.landingBlocks = []
+    }
 
     step.value = 3
   }
@@ -255,18 +300,55 @@ function removeImage(image: ReviewImage) {
   review.images = review.images.filter(i => i !== image)
 }
 
+async function regenerateLandingBlock(block: ReviewLandingBlock) {
+  if (!referenceImageDataUrl.value) return
+  block.regenerating = true
+  try {
+    const result = await apiFetch<{ blocks: Array<{ dataUrl: string, caption: string, sceneId: string }>, cost: number }>(
+      '/api/admin/ai/landing-blocks',
+      { method: 'POST', body: { imageDataUrl: referenceImageDataUrl.value, productName: review.fr.name, sceneIds: [block.sceneId] } },
+    )
+    generationCost.value += result.cost
+    if (result.blocks[0]) {
+      block.dataUrl = result.blocks[0].dataUrl
+      const translated = await apiFetch<{ translations: { en: Array<string | null>, ar: Array<string | null> }, cost: number }>(
+        '/api/admin/ai/translate-landing-blocks',
+        { method: 'POST', body: { captions: [result.blocks[0].caption] } },
+      )
+      generationCost.value += translated.cost
+      block.captions = {
+        fr: result.blocks[0].caption,
+        en: translated.translations.en[0] ?? result.blocks[0].caption,
+        ar: translated.translations.ar[0] ?? result.blocks[0].caption,
+      }
+    }
+  }
+  catch (e) {
+    toast.add({ title: 'Regeneration failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    block.regenerating = false
+  }
+}
+
+function removeLandingBlock(block: ReviewLandingBlock) {
+  review.landingBlocks = review.landingBlocks.filter(b => b !== block)
+}
+
 // --- Step 3: confirm & create ---
 const creating = ref(false)
 
-function cleanLocale(content: LocaleContent): Record<string, string | null> | null {
-  const hasAny = Object.values(content).some(v => v.trim())
-  if (!hasAny) return null
+function cleanLocale(content: LocaleContent): Record<string, unknown> | null {
+  const stringFields = [content.name, content.shortDescription, content.description, content.seoTitle, content.seoDescription]
+  const hasBenefits = content.landingBenefits.some(b => b.text.trim())
+  if (!stringFields.some(v => v.trim()) && !hasBenefits) return null
   return {
     name: content.name.trim() || null,
     shortDescription: content.shortDescription.trim() || null,
     description: content.description.trim() || null,
     seoTitle: content.seoTitle.trim() || null,
     seoDescription: content.seoDescription.trim() || null,
+    landingBenefits: hasBenefits ? content.landingBenefits.filter(b => b.text.trim()) : null,
   }
 }
 
@@ -293,8 +375,9 @@ async function createProduct() {
     }
     const en = cleanLocale(review.en)
     const ar = cleanLocale(review.ar)
-    if (en) translations.en = en
-    if (ar) translations.ar = ar
+    const keptLandingBlocks = review.landingBlocks.filter(b => b.kept)
+    if (en) translations.en = { ...en, landingBlockCaptions: keptLandingBlocks.length ? keptLandingBlocks.map(b => b.captions.en || null) : null }
+    if (ar) translations.ar = { ...ar, landingBlockCaptions: keptLandingBlocks.length ? keptLandingBlocks.map(b => b.captions.ar || null) : null }
 
     const product = await apiFetch<{ id: string }>('/api/admin/ai/products', {
       method: 'POST',
@@ -306,6 +389,11 @@ async function createProduct() {
         referenceImageDataUrl: referenceImageDataUrl.value,
         includeReferenceImage: review.includeReference,
         generatedImageDataUrls: review.images.filter(i => i.kept).map(i => i.dataUrl),
+        layoutStyle: inputForm.layoutStyle,
+        landingBenefits: inputForm.layoutStyle === 'landing' ? review.fr.landingBenefits.filter(b => b.text.trim()) : null,
+        landingBlocks: inputForm.layoutStyle === 'landing'
+          ? keptLandingBlocks.map(b => ({ imageDataUrl: b.dataUrl, caption: b.captions.fr || undefined }))
+          : [],
         translations,
         variants,
       },
@@ -332,7 +420,8 @@ async function createProduct() {
         </h1>
         <p class="text-sm text-stone-500">
           Upload one reference photo — AI writes the name, description, and SEO copy (in French,
-          English and Arabic), and generates extra carousel photos. Nothing is saved until you confirm.
+          English and Arabic), generates extra carousel photos, and — for Landing pages — benefit
+          bullets and lifestyle photo blocks too. Nothing is saved until you confirm.
         </p>
       </div>
       <UButton variant="ghost" to="/admin/products">
@@ -374,6 +463,13 @@ async function createProduct() {
                 @update:model-value="(v) => inputForm.categoryIds = v ? [...inputForm.categoryIds, cat.id] : inputForm.categoryIds.filter(id => id !== cat.id)"
               />
             </div>
+          </UFormField>
+
+          <UFormField label="Layout" description="Landing pages skip the cart with a long-form, direct-order page — the default for new products.">
+            <USelect
+              v-model="inputForm.layoutStyle"
+              :items="[{ label: 'Landing (direct order form)', value: 'landing' }, { label: 'Standard (cart & checkout)', value: 'standard' }]"
+            />
           </UFormField>
 
           <UFormField label="Photos to generate">
@@ -530,6 +626,55 @@ async function createProduct() {
             <div class="mt-2 flex justify-center gap-1">
               <UButton size="xs" variant="soft" icon="i-lucide-refresh-cw" :disabled="image.regenerating" @click="regenerateImage(image)" />
               <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeImage(image)" />
+            </div>
+          </div>
+        </div>
+      </UCard>
+
+      <UCard v-if="inputForm.layoutStyle === 'landing'">
+        <template #header><p class="font-medium">Landing page content</p></template>
+
+        <div>
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-medium">
+              Benefits ("why you'll love it") — {{ { fr: 'French', en: 'English', ar: 'Arabic' }[activeReviewLocale] }}
+            </p>
+            <UButton
+              size="xs" variant="soft" icon="i-lucide-plus"
+              :disabled="review[activeReviewLocale].landingBenefits.length >= 6"
+              @click="addLandingBenefit(activeReviewLocale)"
+            >
+              Add benefit
+            </UButton>
+          </div>
+          <p v-if="!review[activeReviewLocale].landingBenefits.length" class="mt-2 text-sm text-stone-400">
+            No benefits yet.
+          </p>
+          <div v-for="(benefit, i) in review[activeReviewLocale].landingBenefits" :key="i" class="mt-3 flex items-start gap-2">
+            <UInput v-model="benefit.icon" placeholder="✨" class="w-16" />
+            <UInput v-model="benefit.text" placeholder="A short selling point…" class="w-full" />
+            <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeLandingBenefit(activeReviewLocale, i)" />
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <p class="text-sm font-medium">Lifestyle photo blocks</p>
+          <p v-if="!review.landingBlocks.length" class="mt-2 text-sm text-stone-400">
+            No lifestyle blocks generated.
+          </p>
+          <div class="mt-3 grid gap-4 sm:grid-cols-2">
+            <div v-for="block in review.landingBlocks" :key="block.sceneId" class="rounded-md border border-stone-200 p-3">
+              <div class="product-media relative aspect-[3/4] rounded-md">
+                <img :src="block.dataUrl" alt="" class="h-full w-full object-cover">
+                <div v-if="block.regenerating" class="absolute inset-0 flex items-center justify-center bg-white/70">
+                  <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
+                </div>
+              </div>
+              <UInput v-model="block.captions[activeReviewLocale]" class="mt-2 w-full" placeholder="Caption…" />
+              <div class="mt-2 flex justify-center gap-1">
+                <UButton size="xs" variant="soft" icon="i-lucide-refresh-cw" :disabled="block.regenerating" @click="regenerateLandingBlock(block)" />
+                <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeLandingBlock(block)" />
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,12 @@
 import { createError, type H3Event } from 'h3'
-import { generateProductCopyFromImage, generateProductImage, translateProductContent } from '../utils/openrouter'
+import {
+  generateProductCopyFromImage,
+  generateProductImage,
+  translateProductContent,
+  generateLandingBenefits,
+  generateLifestyleCaption,
+  translateLandingBlockCaptions,
+} from '../utils/openrouter'
 import { productsService } from './products.service'
 import { productsRepository } from '../repositories/products.repository'
 import { productTranslationsRepository } from '../repositories/productTranslations.repository'
@@ -79,13 +86,18 @@ export interface WizardLocaleContent {
   description: string | null
   seoTitle: string | null
   seoDescription: string | null
+  landingBenefits?: Array<{ icon?: string, text: string }> | null
+  landingBlockCaptions?: Array<string | null> | null
 }
+
+const DEFAULT_LANDING_BLOCK_SCENES = ['lifestyle-casablanca-street', 'lifestyle-casablanca-cafe']
 
 export const aiService = {
   /**
-   * Analyzes the reference photo and writes French product copy, then
-   * immediately translates it into English and Arabic — so the wizard's
-   * review step opens with all three language tabs already populated.
+   * Analyzes the reference photo and writes French product copy (including
+   * landing-page benefit bullets), then immediately translates it into
+   * English and Arabic — so the wizard's review step opens with all three
+   * language tabs already populated.
    */
   async generateCopy(event: H3Event, input: { imageDataUrl: string, colors: string[], sizes: string[], price: number, categoryName?: string }) {
     const priceLabel = `${(input.price / 100).toFixed(2)} DH`
@@ -98,6 +110,14 @@ export const aiService = {
     })
 
     let cost = copyCost
+
+    const { data: benefitsData, cost: benefitsCost } = await generateLandingBenefits(event, {
+      name: fr.name,
+      shortDescription: fr.shortDescription,
+      description: fr.description,
+    })
+    cost += benefitsCost
+
     const translations: Partial<Record<TranslatableLocale, WizardLocaleContent>> = {}
     for (const locale of ['en', 'ar'] as const) {
       const { data, cost: tCost } = await translateProductContent(event, {
@@ -107,14 +127,19 @@ export const aiService = {
         description: fr.description,
         seoTitle: fr.seoTitle,
         seoDescription: fr.seoDescription,
-        landingBenefits: null,
+        landingBenefits: benefitsData.benefits,
         landingBlocks: null,
       })
       cost += tCost
       translations[locale] = data
     }
 
-    return { fr, en: translations.en ?? null, ar: translations.ar ?? null, cost }
+    return {
+      fr: { ...fr, landingBenefits: benefitsData.benefits },
+      en: translations.en ?? null,
+      ar: translations.ar ?? null,
+      cost,
+    }
   },
 
   /** Generates photos for the given scene ids (see IMAGE_SCENES), optionally recoloring the garment and/or adding model styling notes. Pass a single scene id to regenerate just that one shot. */
@@ -131,7 +156,35 @@ export const aiService = {
     return { images, cost }
   },
 
-  /** Persists the reviewed wizard output as a real product: variants, images, and translations in one go. */
+  /** Generates lifestyle photo blocks (image + AI-written French caption) for a Landing-style page, defaulting to the two Casablanca scenes. Not persisted — for review before saving. */
+  async generateLandingBlocks(event: H3Event, input: { imageDataUrl: string, productName: string, sceneIds?: string[] }) {
+    const sceneIds = input.sceneIds?.length ? input.sceneIds : DEFAULT_LANDING_BLOCK_SCENES
+    const blocks: Array<{ dataUrl: string, caption: string, sceneId: string }> = []
+    let cost = 0
+    for (const sceneId of sceneIds) {
+      const scene = getImageScene(sceneId)
+      const { data: img, cost: imgCost } = await generateProductImage(event, { referenceImageDataUrl: input.imageDataUrl, prompt: scene.buildPrompt({}) })
+      cost += imgCost
+      const { data: cap, cost: capCost } = await generateLifestyleCaption(event, { imageDataUrl: img.dataUrl, productName: input.productName })
+      cost += capCost
+      blocks.push({ dataUrl: img.dataUrl, caption: cap.caption, sceneId })
+    }
+    return { blocks, cost }
+  },
+
+  /** Translates a list of lifestyle-block captions (aligned by index) into English and Arabic. */
+  async translateLandingBlocks(event: H3Event, captions: Array<string | null>) {
+    let cost = 0
+    const translations: Record<'en' | 'ar', Array<string | null>> = { en: [], ar: [] }
+    for (const locale of ['en', 'ar'] as const) {
+      const { data, cost: c } = await translateLandingBlockCaptions(event, { targetLocale: locale, captions })
+      cost += c
+      translations[locale] = data.captions
+    }
+    return { translations, cost }
+  },
+
+  /** Persists the reviewed wizard output as a real product: variants, images, landing content, and translations in one go. */
   async createProduct(event: H3Event, input: {
     sku: string
     basePrice: number
@@ -140,6 +193,9 @@ export const aiService = {
     referenceImageDataUrl: string
     includeReferenceImage: boolean
     generatedImageDataUrls: string[]
+    layoutStyle?: 'standard' | 'landing'
+    landingBenefits?: Array<{ icon?: string, text: string }> | null
+    landingBlocks?: Array<{ imageDataUrl: string, caption?: string }>
     translations: { fr: WizardLocaleContent, en?: WizardLocaleContent | null, ar?: WizardLocaleContent | null }
     variants: Array<{ sku: string, stock: number, attributeValueIds: string[] }>
   }) {
@@ -154,6 +210,8 @@ export const aiService = {
       seoTitle: input.translations.fr.seoTitle ?? null,
       seoDescription: input.translations.fr.seoDescription ?? null,
       categoryIds: input.categoryIds,
+      layoutStyle: input.layoutStyle ?? 'landing',
+      landingBenefits: input.landingBenefits ?? null,
     })
 
     for (const locale of ['en', 'ar'] as const) {
@@ -165,6 +223,8 @@ export const aiService = {
         description: content.description ?? null,
         seoTitle: content.seoTitle ?? null,
         seoDescription: content.seoDescription ?? null,
+        landingBenefits: content.landingBenefits ?? null,
+        landingBlockCaptions: content.landingBlockCaptions ?? null,
       })
     }
 
@@ -177,6 +237,14 @@ export const aiService = {
       const { url } = await uploadImageToR2(event, { data, contentType, folder: `products/${product.id}` })
       const existing = await productsRepository.listImages(event, product.id)
       await productsRepository.addImage(event, product.id, { url, sortOrder: existing.length })
+    }
+
+    if (input.landingBlocks?.length) {
+      await productsService.addGeneratedLandingBlocks(
+        event,
+        product.id,
+        input.landingBlocks.map(b => ({ imageDataUrl: b.imageDataUrl, caption: b.caption ?? '' })),
+      )
     }
 
     // `productsService.create` always seeds one attribute-less "default"

@@ -17,12 +17,29 @@ export const aiProductImagesSchema = z.object({
   stylingNotes: z.string().trim().min(1).max(200).optional(),
 })
 
+export const aiLandingBlocksSchema = z.object({
+  imageDataUrl: dataUrlSchema,
+  productName: z.string().trim().min(1),
+  sceneIds: z.array(z.string().trim().min(1)).max(3).optional(),
+})
+
+export const aiTranslateLandingBlocksSchema = z.object({
+  captions: z.array(z.string().trim().nullable()).min(1).max(3),
+})
+
+const aiLandingBenefitSchema = z.object({
+  icon: z.string().trim().max(8).optional(),
+  text: z.string().trim().min(1),
+})
+
 const aiLocaleContentSchema = z.object({
   name: z.string().trim().optional().nullable(),
   shortDescription: z.string().trim().optional().nullable(),
   description: z.string().trim().optional().nullable(),
   seoTitle: z.string().trim().optional().nullable(),
   seoDescription: z.string().trim().optional().nullable(),
+  landingBenefits: z.array(aiLandingBenefitSchema).max(6).optional().nullable(),
+  landingBlockCaptions: z.array(z.string().trim().nullable()).max(3).optional().nullable(),
 })
 
 const aiVariantInputSchema = z.object({
@@ -39,6 +56,12 @@ export const aiProductCreateSchema = z.object({
   referenceImageDataUrl: dataUrlSchema,
   includeReferenceImage: z.boolean().default(true),
   generatedImageDataUrls: z.array(dataUrlSchema).max(4).default([]),
+  layoutStyle: z.enum(['standard', 'landing']).default('landing'),
+  landingBenefits: z.array(aiLandingBenefitSchema).max(6).optional().nullable(),
+  landingBlocks: z.array(z.object({
+    imageDataUrl: dataUrlSchema,
+    caption: z.string().trim().max(200).optional(),
+  })).max(3).optional().default([]),
   translations: z.object({
     fr: aiLocaleContentSchema.extend({ name: z.string().trim().min(1) }),
     en: aiLocaleContentSchema.optional(),

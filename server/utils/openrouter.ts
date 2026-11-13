@@ -242,6 +242,60 @@ export async function generateProductSeo(event: H3Event, params: {
   return { data, cost }
 }
 
+export interface LandingBenefit { icon?: string, text: string }
+
+/** Writes 4 short French "why you'll love it" benefit bullets for a Landing-style single-product page. */
+export async function generateLandingBenefits(event: H3Event, params: {
+  name: string
+  shortDescription: string | null
+  description: string | null
+}): Promise<{ data: { benefits: LandingBenefit[] }, cost: number }> {
+  const system = [
+    'Write exactly 4 short "why you\'ll love it" benefit bullets in FRENCH for this fashion e-commerce product, for a long-form single-product landing page.',
+    'Never invent claims not supported by the given name/description — focus on fit, fabric feel, versatility, ease of care, styling, etc.',
+    'Respond with ONLY a JSON object, no markdown fences: { "benefits": [{ "icon": string, "text": string }, ...] } with exactly 4 items.',
+    '- "icon": ONE plain typographic/geometric unicode symbol such as ✦ ✧ ◆ ◇ ★ ☆ ▲ ● ○ — never an emoji (no color icons, no pictographs), different for each item.',
+    '- "text": max 60 characters, concrete and concise.',
+  ].join('\n')
+  const userText = JSON.stringify({ name: params.name, shortDescription: params.shortDescription, description: params.description })
+  const { data, cost } = await chatJson<{ benefits: LandingBenefit[] }>(event, { system, userText })
+  return { data, cost }
+}
+
+/** Writes one short French caption for a generated lifestyle photo, based on what's actually shown in it. */
+export async function generateLifestyleCaption(event: H3Event, params: {
+  imageDataUrl: string
+  productName: string
+}): Promise<{ data: { caption: string }, cost: number }> {
+  const system = [
+    'Write ONE short, evocative FRENCH caption (max 70 characters) for this lifestyle fashion photo, for a landing-page photo block.',
+    'Reflect the mood/setting actually shown in the photo, not generic filler.',
+    'Respond with ONLY a JSON object, no markdown fences: { "caption": string }.',
+  ].join('\n')
+  const userText = `Product: ${params.productName}`
+  const { data, cost } = await chatJson<{ caption: string }>(event, { system, userText, imageDataUrl: params.imageDataUrl })
+  return { data, cost }
+}
+
+export interface TranslatedLandingBlockCaptions {
+  captions: Array<string | null>
+}
+
+/** Translates a list of lifestyle-block captions (aligned by index) into the given locale. */
+export async function translateLandingBlockCaptions(event: H3Event, params: {
+  targetLocale: 'en' | 'ar'
+  captions: Array<string | null>
+}): Promise<{ data: TranslatedLandingBlockCaptions, cost: number }> {
+  const system = [
+    `Translate this list of French lifestyle-photo captions into ${LOCALE_NAMES[params.targetLocale]}, same tone, same length/order.`,
+    'Respond with ONLY a JSON object, no markdown fences: { "captions": [string|null, ...] }, same length and order as the input.',
+    'If an input item is null, its output must be null.',
+  ].join('\n')
+  const userText = JSON.stringify({ captions: params.captions })
+  const { data, cost } = await chatJson<TranslatedLandingBlockCaptions>(event, { system, userText })
+  return { data, cost }
+}
+
 export interface HomepageCopyResult {
   tagline: string
   announcementBar: string

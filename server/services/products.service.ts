@@ -4,7 +4,7 @@ import { variantsRepository } from '../repositories/variants.repository'
 import { productTranslationsRepository } from '../repositories/productTranslations.repository'
 import { slugify, withUniqueSuffix } from '../utils/slug'
 import { deleteImageFromR2, r2KeyFromUrl, uploadImageToR2, dataUrlToBytes } from '../utils/media'
-import { translateProductContent, generateProductSeo } from '../utils/openrouter'
+import { translateProductContent, generateProductSeo, generateLandingBenefits } from '../utils/openrouter'
 import type { TranslatableLocale } from '../utils/locale'
 
 async function uniqueSlug(event: H3Event, base: string, ignoreId?: string): Promise<string> {
@@ -210,6 +210,33 @@ export const productsService = {
       const existing = await productsRepository.listImages(event, id)
       await productsRepository.addImage(event, id, { url, sortOrder: existing.length })
     }
+    return this.get(event, id)
+  },
+
+  /** Writes French landing-page benefit bullets ("why you'll love it") from the product's existing name/description. Saves immediately, still editable afterward. */
+  async aiGenerateLandingBenefits(event: H3Event, id: string) {
+    const product = await this.get(event, id)
+    const { data, cost } = await generateLandingBenefits(event, {
+      name: product.name,
+      shortDescription: product.shortDescription,
+      description: product.description,
+    })
+    await productsRepository.update(event, id, { landingBenefits: data.benefits })
+    return { benefits: data.benefits, cost }
+  },
+
+  /** Persists admin-reviewed AI-generated lifestyle blocks (image + caption) into an existing product's landingBlocks, uploading each image to R2. Appends, capped at 3 total (same as the manual "Add block" UI). */
+  async addGeneratedLandingBlocks(event: H3Event, id: string, blocks: Array<{ imageDataUrl: string, caption: string }>) {
+    const product = await this.get(event, id)
+    const existing = product.landingBlocks ?? []
+    const remaining = Math.max(0, 3 - existing.length)
+    const uploaded: Array<{ imageUrl: string, caption?: string }> = []
+    for (const block of blocks.slice(0, remaining)) {
+      const { data, contentType } = dataUrlToBytes(block.imageDataUrl)
+      const { url } = await uploadImageToR2(event, { data, contentType, folder: `products/${id}/landing` })
+      uploaded.push({ imageUrl: url, caption: block.caption || undefined })
+    }
+    await productsRepository.update(event, id, { landingBlocks: [...existing, ...uploaded] })
     return this.get(event, id)
   },
 }

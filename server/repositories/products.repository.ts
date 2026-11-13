@@ -94,7 +94,7 @@ export const productsRepository = {
       seoTitle: input.seoTitle ?? null,
       seoDescription: input.seoDescription ?? null,
       sizeGuideId: input.sizeGuideId ?? null,
-      layoutStyle: input.layoutStyle ?? 'standard',
+      layoutStyle: input.layoutStyle ?? 'landing',
       landingBenefits: input.landingBenefits ?? null,
       landingBlocks: input.landingBlocks ?? null,
       createdAt: now,
