@@ -341,14 +341,19 @@ async function aiGenerateSeo() {
 }
 
 // --- Generate more photos with AI (uses the first existing photo as reference) ---
-interface AiReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, shotIndex: number }
+interface AiReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, sceneId: string }
+interface AiImageScene { id: string, label: string, hasModel: boolean }
 const aiImagesModalOpen = ref(false)
-const aiGeneratingImages = ref(false)
+const aiImagesPhase = ref<'pick' | 'generating' | 'review'>('pick')
 const aiGeneratingLabel = ref('')
 const aiReviewImages = ref<AiReviewImage[]>([])
 const aiReferenceDataUrl = ref<string | null>(null)
 const aiImagesCost = ref(0)
 const aiSavingImages = ref(false)
+const aiImageScenes = ref<AiImageScene[]>([])
+const aiSelectedSceneIds = ref<string[]>([])
+const aiTargetColor = ref('')
+const aiStylingNotes = ref('')
 
 function fileToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -359,36 +364,58 @@ function fileToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+function addAiStylingPreset(text: string) {
+  aiStylingNotes.value = aiStylingNotes.value.trim() ? `${aiStylingNotes.value.trim()}, ${text}` : text
+}
+
 async function openAiImagesModal() {
   if (!product.value?.images.length) {
     toast.add({ title: 'Upload at least one photo first', description: 'AI needs an existing photo to generate consistent new ones from.', color: 'warning' })
     return
   }
   aiImagesModalOpen.value = true
+  aiImagesPhase.value = 'pick'
   aiReviewImages.value = []
   aiImagesCost.value = 0
-  aiGeneratingImages.value = true
-  aiGeneratingLabel.value = 'Preparing reference photo…'
+  aiTargetColor.value = ''
+  aiStylingNotes.value = ''
   try {
-    const refBlob = await (await fetch(product.value.images[0].url)).blob()
-    const dataUrl = await fileToDataUrl(refBlob)
-    aiReferenceDataUrl.value = dataUrl
+    if (!aiImageScenes.value.length) {
+      aiImageScenes.value = await apiFetch<AiImageScene[]>('/api/admin/ai/image-scenes')
+    }
+    // Default selection: everything except the café scene.
+    aiSelectedSceneIds.value = aiImageScenes.value.filter(s => s.id !== 'lifestyle-casablanca-cafe').map(s => s.id)
 
-    aiGeneratingLabel.value = 'Generating photos — this can take up to a minute…'
-    const result = await apiFetch<{ images: Array<{ dataUrl: string }>, cost: number }>('/api/admin/ai/product-images', {
+    const refBlob = await (await fetch(product.value.images[0].url)).blob()
+    aiReferenceDataUrl.value = await fileToDataUrl(refBlob)
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to prepare reference photo', description: apiErrorMessage(e), color: 'error' })
+    aiImagesModalOpen.value = false
+  }
+}
+
+async function startAiImageGeneration() {
+  if (!aiReferenceDataUrl.value || !aiSelectedSceneIds.value.length) return
+  aiImagesPhase.value = 'generating'
+  aiGeneratingLabel.value = `Generating ${aiSelectedSceneIds.value.length} photo${aiSelectedSceneIds.value.length > 1 ? 's' : ''} — this can take up to a minute…`
+  try {
+    const result = await apiFetch<{ images: Array<{ dataUrl: string, sceneId: string }>, cost: number }>('/api/admin/ai/product-images', {
       method: 'POST',
-      body: { imageDataUrl: dataUrl, count: 3 },
+      body: {
+        imageDataUrl: aiReferenceDataUrl.value,
+        sceneIds: aiSelectedSceneIds.value,
+        color: aiTargetColor.value.trim() || undefined,
+        stylingNotes: aiStylingNotes.value.trim() || undefined,
+      },
     })
     aiImagesCost.value += result.cost
-    aiReviewImages.value = result.images.map((img, i) => ({ dataUrl: img.dataUrl, kept: true, regenerating: false, shotIndex: i }))
+    aiReviewImages.value = result.images.map(img => ({ dataUrl: img.dataUrl, kept: true, regenerating: false, sceneId: img.sceneId }))
+    aiImagesPhase.value = 'review'
   }
   catch (e) {
     toast.add({ title: 'Generation failed', description: apiErrorMessage(e), color: 'error' })
-    aiImagesModalOpen.value = false
-  }
-  finally {
-    aiGeneratingImages.value = false
-    aiGeneratingLabel.value = ''
+    aiImagesPhase.value = 'pick'
   }
 }
 
@@ -396,9 +423,14 @@ async function regenerateAiImage(image: AiReviewImage) {
   if (!aiReferenceDataUrl.value) return
   image.regenerating = true
   try {
-    const result = await apiFetch<{ images: Array<{ dataUrl: string }>, cost: number }>('/api/admin/ai/product-images', {
+    const result = await apiFetch<{ images: Array<{ dataUrl: string, sceneId: string }>, cost: number }>('/api/admin/ai/product-images', {
       method: 'POST',
-      body: { imageDataUrl: aiReferenceDataUrl.value, count: 1, shotIndex: image.shotIndex },
+      body: {
+        imageDataUrl: aiReferenceDataUrl.value,
+        sceneIds: [image.sceneId],
+        color: aiTargetColor.value.trim() || undefined,
+        stylingNotes: aiStylingNotes.value.trim() || undefined,
+      },
     })
     aiImagesCost.value += result.cost
     if (result.images[0]) image.dataUrl = result.images[0].dataUrl
@@ -809,23 +841,60 @@ onMounted(load)
 
     <UModal v-model:open="aiImagesModalOpen" title="Generate more photos with AI" :ui="{ content: 'sm:max-w-2xl' }">
       <template #body>
-        <div v-if="aiGeneratingImages" class="flex items-center gap-3 py-10">
+        <div v-if="aiImagesPhase === 'pick'">
+          <p class="text-sm text-stone-500">
+            Choose which shots to generate from this product's first photo. Optionally recolor the
+            garment or add model styling notes (e.g. a hijab) — these apply to every shot below.
+          </p>
+
+          <UFormField label="Photos to generate" class="mt-4">
+            <div class="flex flex-wrap gap-3">
+              <UCheckbox
+                v-for="scene in aiImageScenes" :key="scene.id"
+                :model-value="aiSelectedSceneIds.includes(scene.id)" :label="scene.label"
+                @update:model-value="(v) => aiSelectedSceneIds = v ? [...aiSelectedSceneIds, scene.id] : aiSelectedSceneIds.filter(id => id !== scene.id)"
+              />
+            </div>
+          </UFormField>
+
+          <div class="mt-4 grid grid-cols-2 gap-4">
+            <UFormField label="Target color (optional)" description="e.g. &quot;emerald green&quot; — recolors the garment. Leave empty to keep its original color.">
+              <UInput v-model="aiTargetColor" placeholder="e.g. emerald green" class="w-full" />
+            </UFormField>
+            <UFormField label="Model styling notes (optional)">
+              <UInput v-model="aiStylingNotes" placeholder="e.g. wearing a hijab" class="w-full" />
+              <UButton size="xs" variant="soft" class="mt-2" @click="addAiStylingPreset('wearing a neatly styled hijab that complements the outfit')">
+                + Hijab
+              </UButton>
+            </UFormField>
+          </div>
+
+          <div class="mt-6 flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="aiImagesModalOpen = false">Cancel</UButton>
+            <UButton :disabled="!aiSelectedSceneIds.length" @click="startAiImageGeneration">
+              Generate {{ aiSelectedSceneIds.length }} photo{{ aiSelectedSceneIds.length === 1 ? '' : 's' }}
+            </UButton>
+          </div>
+        </div>
+
+        <div v-else-if="aiImagesPhase === 'generating'" class="flex items-center gap-3 py-10">
           <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
           <p class="text-sm text-stone-600">{{ aiGeneratingLabel }}</p>
         </div>
+
         <div v-else>
           <p class="text-sm text-stone-500">
-            Generated from this product's first photo. Review, regenerate, or remove any shot before saving.
-            AI cost so far: ${{ aiImagesCost.toFixed(4) }}
+            Review, regenerate, or remove any shot before saving. AI cost so far: ${{ aiImagesCost.toFixed(4) }}
           </p>
           <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div v-for="image in aiReviewImages" :key="image.shotIndex">
+            <div v-for="image in aiReviewImages" :key="image.sceneId">
               <div class="product-media relative aspect-[3/4] rounded-md">
                 <img :src="image.dataUrl" alt="" class="h-full w-full object-cover">
                 <div v-if="image.regenerating" class="absolute inset-0 flex items-center justify-center bg-white/70">
                   <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
                 </div>
               </div>
+              <p class="mt-1 text-center text-xs text-stone-400">{{ aiImageScenes.find(s => s.id === image.sceneId)?.label }}</p>
               <div class="mt-2 flex justify-center gap-1">
                 <UButton size="xs" variant="soft" icon="i-lucide-refresh-cw" :disabled="image.regenerating" @click="regenerateAiImage(image)" />
                 <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeAiImage(image)" />
@@ -833,7 +902,7 @@ onMounted(load)
             </div>
           </div>
           <div class="mt-6 flex justify-end gap-2">
-            <UButton variant="ghost" color="neutral" @click="aiImagesModalOpen = false">Cancel</UButton>
+            <UButton variant="ghost" color="neutral" @click="aiImagesPhase = 'pick'">Back</UButton>
             <UButton :loading="aiSavingImages" :disabled="!aiReviewImages.length" @click="saveAiImages">
               Add {{ aiReviewImages.length }} photo{{ aiReviewImages.length === 1 ? '' : 's' }}
             </UButton>

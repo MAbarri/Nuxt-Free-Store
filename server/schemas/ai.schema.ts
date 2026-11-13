@@ -12,8 +12,9 @@ export const aiProductCopySchema = z.object({
 
 export const aiProductImagesSchema = z.object({
   imageDataUrl: dataUrlSchema,
-  count: z.number().int().min(1).max(4).default(4),
-  shotIndex: z.number().int().min(0).max(3).optional(),
+  sceneIds: z.array(z.string().trim().min(1)).min(1).max(6),
+  color: z.string().trim().min(1).max(60).optional(),
+  stylingNotes: z.string().trim().min(1).max(200).optional(),
 })
 
 const aiLocaleContentSchema = z.object({

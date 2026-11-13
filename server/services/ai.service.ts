@@ -1,4 +1,4 @@
-import type { H3Event } from 'h3'
+import { createError, type H3Event } from 'h3'
 import { generateProductCopyFromImage, generateProductImage, translateProductContent } from '../utils/openrouter'
 import { productsService } from './products.service'
 import { productsRepository } from '../repositories/products.repository'
@@ -7,15 +7,71 @@ import { variantsRepository } from '../repositories/variants.repository'
 import { uploadImageToR2, dataUrlToBytes } from '../utils/media'
 import type { TranslatableLocale } from '../utils/locale'
 
-// One prompt per carousel shot, each instructed to preserve the reference
-// photo's garment exactly and only vary angle/setting — this is what keeps
-// the generated carousel looking like "the same product", not a lookalike.
-const IMAGE_SHOT_PROMPTS = [
-  'Professional e-commerce product photo of the exact same garment shown in the reference image, front view, worn by a model, soft studio lighting, clean neutral background, editorial fashion catalog style. Keep the garment\'s color, pattern and design identical to the reference image.',
-  'Professional e-commerce product photo of the exact same garment shown in the reference image, back view, worn by a model, soft studio lighting, clean neutral background, editorial fashion catalog style. Keep the garment\'s color, pattern and design identical to the reference image.',
-  'Close-up detail product photo of the exact same garment shown in the reference image, focused on fabric texture and stitching, soft studio lighting, shallow depth of field, no model. Keep the garment\'s color, pattern and design identical to the reference image.',
-  'Lifestyle photo of a model wearing the exact same garment shown in the reference image, outdoors in natural daylight, candid editorial fashion photography style. Keep the garment\'s color, pattern and design identical to the reference image.',
+function colorClause(color?: string): string {
+  return color
+    ? ` Change the garment's color to ${color}; keep its exact cut, silhouette, fabric texture and design otherwise identical to the reference image.`
+    : ' Keep the garment\'s color, pattern and design identical to the reference image.'
+}
+
+function stylingClause(hasModel: boolean, stylingNotes?: string): string {
+  return hasModel && stylingNotes ? ` Additional model styling: ${stylingNotes}.` : ''
+}
+
+export interface ImageScene {
+  id: string
+  label: string
+  /** Whether this scene features a model wearing the garment (vs. a detail-only shot) — styling notes only apply here. */
+  hasModel: boolean
+  buildPrompt: (opts: { color?: string, stylingNotes?: string }) => string
+}
+
+// A selectable library of shot "scenes", each a distinct prompt template.
+// Every prompt repeats "exact same garment... keep color/pattern/design
+// identical" (via colorClause) — that's what keeps a generated carousel
+// looking like the same product across angles/settings, not a lookalike.
+export const IMAGE_SCENES: ImageScene[] = [
+  {
+    id: 'studio-front',
+    label: 'Studio — Front view',
+    hasModel: true,
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Professional e-commerce product photo of the exact same garment shown in the reference image, front view, worn by a model, soft studio lighting, clean neutral background, editorial fashion catalog style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'studio-back',
+    label: 'Studio — Back view',
+    hasModel: true,
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Professional e-commerce product photo of the exact same garment shown in the reference image, back view, worn by a model, soft studio lighting, clean neutral background, editorial fashion catalog style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'studio-detail',
+    label: 'Studio — Detail close-up',
+    hasModel: false,
+    buildPrompt: ({ color }) =>
+      `Close-up detail product photo of the exact same garment shown in the reference image, focused on fabric texture and stitching, soft studio lighting, shallow depth of field, no model.${colorClause(color)}`,
+  },
+  {
+    id: 'lifestyle-casablanca-street',
+    label: 'Lifestyle — Casablanca street',
+    hasModel: true,
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial street-style photo of a model wearing the exact same garment shown in the reference image, walking on a lively Casablanca street, Art Deco facades and tiled sidewalks in the background, palm trees, warm natural daylight, fashion-blog photography style.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
+  {
+    id: 'lifestyle-casablanca-cafe',
+    label: 'Lifestyle — Casablanca café',
+    hasModel: true,
+    buildPrompt: ({ color, stylingNotes }) =>
+      `Candid editorial lifestyle photo of a model wearing the exact same garment shown in the reference image, seated at a Moroccan café terrace, brass table, a glass of mint tea nearby, mosaic tile details, warm natural light, relaxed and elegant mood.${colorClause(color)}${stylingClause(true, stylingNotes)}`,
+  },
 ]
+
+export function getImageScene(id: string): ImageScene {
+  const scene = IMAGE_SCENES.find(s => s.id === id)
+  if (!scene) throw createError({ statusCode: 422, statusMessage: `Unknown image scene: ${id}` })
+  return scene
+}
 
 export interface WizardLocaleContent {
   name: string
@@ -61,16 +117,15 @@ export const aiService = {
     return { fr, en: translations.en ?? null, ar: translations.ar ?? null, cost }
   },
 
-  /** Generates carousel shots consistent with the reference photo. Pass `shotIndex` to regenerate just one specific shot. */
-  async generateImages(event: H3Event, input: { imageDataUrl: string, count: number, shotIndex?: number }) {
-    const prompts = input.shotIndex !== undefined
-      ? [IMAGE_SHOT_PROMPTS[input.shotIndex]]
-      : IMAGE_SHOT_PROMPTS.slice(0, input.count)
-    const images: Array<{ dataUrl: string }> = []
+  /** Generates photos for the given scene ids (see IMAGE_SCENES), optionally recoloring the garment and/or adding model styling notes. Pass a single scene id to regenerate just that one shot. */
+  async generateImages(event: H3Event, input: { imageDataUrl: string, sceneIds: string[], color?: string, stylingNotes?: string }) {
+    const images: Array<{ dataUrl: string, sceneId: string }> = []
     let cost = 0
-    for (const prompt of prompts) {
+    for (const sceneId of input.sceneIds) {
+      const scene = getImageScene(sceneId)
+      const prompt = scene.buildPrompt({ color: input.color, stylingNotes: input.stylingNotes })
       const { data, cost: imgCost } = await generateProductImage(event, { referenceImageDataUrl: input.imageDataUrl, prompt })
-      images.push({ dataUrl: data.dataUrl })
+      images.push({ dataUrl: data.dataUrl, sceneId })
       cost += imgCost
     }
     return { images, cost }

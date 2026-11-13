@@ -4,6 +4,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 interface Category { id: string, name: string }
 interface AttributeValue { id: string, value: string, swatchHex: string | null }
 interface Attribute { id: string, name: string, displayType: string, values: AttributeValue[] }
+interface ImageScene { id: string, label: string, hasModel: boolean }
 
 interface LocaleContent {
   name: string
@@ -19,6 +20,7 @@ function emptyLocaleContent(): LocaleContent {
 const toast = useToast()
 const categories = ref<Category[]>([])
 const attributes = ref<Attribute[]>([])
+const imageScenes = ref<ImageScene[]>([])
 const loadingLookups = ref(true)
 
 const colorAttr = computed(() => attributes.value.find(a => ['color', 'colour', 'couleur'].includes(a.name.trim().toLowerCase())))
@@ -27,12 +29,17 @@ const sizeAttr = computed(() => attributes.value.find(a => ['size', 'taille', 'p
 async function loadLookups() {
   loadingLookups.value = true
   try {
-    const [cats, attrs] = await Promise.all([
+    const [cats, attrs, scenes] = await Promise.all([
       apiFetch<Category[]>('/api/admin/categories'),
       apiFetch<Attribute[]>('/api/admin/attributes'),
+      apiFetch<ImageScene[]>('/api/admin/ai/image-scenes'),
     ])
     categories.value = cats
     attributes.value = attrs
+    imageScenes.value = scenes
+    // Default selection: everything except the café scene, to keep the
+    // default generation close to the previous "4 photos" behavior.
+    selectedSceneIds.value = scenes.filter(s => s.id !== 'lifestyle-casablanca-cafe').map(s => s.id)
   }
   catch (e) {
     toast.add({ title: 'Failed to load categories/attributes', description: apiErrorMessage(e), color: 'error' })
@@ -65,13 +72,51 @@ const inputForm = reactive({
   basePrice: 0,
   compareAtPrice: null as number | null,
   categoryIds: [] as string[],
-  imageCount: 4,
 })
+
+// --- Photo scenes + optional color/styling modifiers ---
+const selectedSceneIds = ref<string[]>([])
+const targetColor = ref('')
+const stylingNotes = ref('')
+
+function addStylingPreset(text: string) {
+  stylingNotes.value = stylingNotes.value.trim() ? `${stylingNotes.value.trim()}, ${text}` : text
+}
 
 const selectedColorIds = ref<string[]>([])
 const selectedSizeIds = ref<string[]>([])
 /** Keyed by `${colorId}:${sizeId}` (or just one id if that attribute isn't configured). */
 const stockGrid = reactive<Record<string, number>>({})
+
+// --- Add a new color value on the fly, in case the one needed isn't set up yet ---
+const newColorName = ref('')
+const newColorHex = ref('#000000')
+const addingColor = ref(false)
+
+async function addColor() {
+  if (!colorAttr.value || !newColorName.value.trim()) return
+  const name = newColorName.value.trim()
+  addingColor.value = true
+  try {
+    const result = await apiFetch<{ id: string }>(`/api/admin/attributes/${colorAttr.value.id}/values`, {
+      method: 'POST',
+      body: {
+        value: name,
+        swatchHex: colorAttr.value.displayType === 'swatch' ? newColorHex.value : undefined,
+      },
+    })
+    attributes.value = await apiFetch<Attribute[]>('/api/admin/attributes')
+    selectedColorIds.value = [...selectedColorIds.value, result.id]
+    newColorName.value = ''
+    toast.add({ title: `Added color "${name}"`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to add color', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    addingColor.value = false
+  }
+}
 
 function comboKey(colorId: string | null, sizeId: string | null) {
   return `${colorId ?? '_'}:${sizeId ?? '_'}`
@@ -108,7 +153,8 @@ const canGenerate = computed(() =>
   !!referenceImageDataUrl.value
   && inputForm.sku.trim().length > 0
   && inputForm.basePrice > 0
-  && combos.value.length > 0,
+  && combos.value.length > 0
+  && selectedSceneIds.value.length > 0,
 )
 
 // --- Step 2: generation ---
@@ -116,7 +162,7 @@ const generating = ref(false)
 const generatingLabel = ref('')
 const generationCost = ref(0)
 
-interface ReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, shotIndex: number }
+interface ReviewImage { dataUrl: string, kept: boolean, regenerating: boolean, sceneId: string }
 const review = reactive({
   fr: emptyLocaleContent(),
   en: emptyLocaleContent(),
@@ -150,13 +196,21 @@ async function generate() {
     review.en = copy.en ? { ...copy.en } : emptyLocaleContent()
     review.ar = copy.ar ? { ...copy.ar } : emptyLocaleContent()
 
-    generatingLabel.value = `Generating ${inputForm.imageCount} product photo${inputForm.imageCount > 1 ? 's' : ''} — this can take up to a minute…`
-    const imagesResult = await apiFetch<{ images: Array<{ dataUrl: string }>, cost: number }>(
+    generatingLabel.value = `Generating ${selectedSceneIds.value.length} product photo${selectedSceneIds.value.length > 1 ? 's' : ''} — this can take up to a minute…`
+    const imagesResult = await apiFetch<{ images: Array<{ dataUrl: string, sceneId: string }>, cost: number }>(
       '/api/admin/ai/product-images',
-      { method: 'POST', body: { imageDataUrl: referenceImageDataUrl.value, count: inputForm.imageCount } },
+      {
+        method: 'POST',
+        body: {
+          imageDataUrl: referenceImageDataUrl.value,
+          sceneIds: selectedSceneIds.value,
+          color: targetColor.value.trim() || undefined,
+          stylingNotes: stylingNotes.value.trim() || undefined,
+        },
+      },
     )
     generationCost.value += imagesResult.cost
-    review.images = imagesResult.images.map((img, i) => ({ dataUrl: img.dataUrl, kept: true, regenerating: false, shotIndex: i }))
+    review.images = imagesResult.images.map(img => ({ dataUrl: img.dataUrl, kept: true, regenerating: false, sceneId: img.sceneId }))
     review.includeReference = true
 
     step.value = 3
@@ -174,9 +228,17 @@ async function regenerateImage(image: ReviewImage) {
   if (!referenceImageDataUrl.value) return
   image.regenerating = true
   try {
-    const result = await apiFetch<{ images: Array<{ dataUrl: string }>, cost: number }>(
+    const result = await apiFetch<{ images: Array<{ dataUrl: string, sceneId: string }>, cost: number }>(
       '/api/admin/ai/product-images',
-      { method: 'POST', body: { imageDataUrl: referenceImageDataUrl.value, count: 1, shotIndex: image.shotIndex } },
+      {
+        method: 'POST',
+        body: {
+          imageDataUrl: referenceImageDataUrl.value,
+          sceneIds: [image.sceneId],
+          color: targetColor.value.trim() || undefined,
+          stylingNotes: stylingNotes.value.trim() || undefined,
+        },
+      },
     )
     generationCost.value += result.cost
     if (result.images[0]) image.dataUrl = result.images[0].dataUrl
@@ -284,8 +346,8 @@ async function createProduct() {
         <template #header><p class="font-medium">Product basics</p></template>
         <div class="space-y-4">
           <UFormField label="Reference photo">
-            <div class="flex items-start gap-4">
-              <div class="product-media size-28 shrink-0 rounded-md">
+            <div class="max-w-xs space-y-3">
+              <div class="product-media aspect-[3/4] rounded-md">
                 <img v-if="referenceImageDataUrl" :src="referenceImageDataUrl" alt="" class="h-full w-full object-cover">
                 <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
                   <UIcon name="i-lucide-image" class="size-8" />
@@ -302,12 +364,6 @@ async function createProduct() {
             <UFormField label="SKU"><UInput v-model="inputForm.sku" required class="w-full" /></UFormField>
             <UFormField label="Base price (DH)"><UInputNumber v-model="inputForm.basePrice" :min="0" :step="10" class="w-full" /></UFormField>
             <UFormField label="Compare-at price (DH, optional)"><UInputNumber v-model="inputForm.compareAtPrice" :min="0" :step="10" class="w-full" /></UFormField>
-            <UFormField label="Photos to generate">
-              <USelect
-                v-model="inputForm.imageCount"
-                :items="[1, 2, 3, 4].map(n => ({ label: `${n} photo${n > 1 ? 's' : ''}`, value: n }))"
-              />
-            </UFormField>
           </div>
 
           <UFormField label="Categories">
@@ -319,6 +375,28 @@ async function createProduct() {
               />
             </div>
           </UFormField>
+
+          <UFormField label="Photos to generate">
+            <div class="flex flex-wrap gap-3">
+              <UCheckbox
+                v-for="scene in imageScenes" :key="scene.id"
+                :model-value="selectedSceneIds.includes(scene.id)" :label="scene.label"
+                @update:model-value="(v) => selectedSceneIds = v ? [...selectedSceneIds, scene.id] : selectedSceneIds.filter(id => id !== scene.id)"
+              />
+            </div>
+          </UFormField>
+
+          <div class="grid grid-cols-2 gap-4">
+            <UFormField label="Target color (optional)" description="e.g. &quot;emerald green&quot; — recolors the garment. Leave empty to keep the reference photo's color.">
+              <UInput v-model="targetColor" placeholder="e.g. emerald green" class="w-full" />
+            </UFormField>
+            <UFormField label="Model styling notes (optional)">
+              <UInput v-model="stylingNotes" placeholder="e.g. wearing a hijab" class="w-full" />
+              <UButton size="xs" variant="soft" class="mt-2" @click="addStylingPreset('wearing a neatly styled hijab that complements the outfit')">
+                + Hijab
+              </UButton>
+            </UFormField>
+          </div>
         </div>
       </UCard>
 
@@ -338,6 +416,23 @@ async function createProduct() {
                 :model-value="selectedColorIds.includes(v.id)" :label="v.value"
                 @update:model-value="(sel) => selectedColorIds = sel ? [...selectedColorIds, v.id] : selectedColorIds.filter(id => id !== v.id)"
               />
+            </div>
+
+            <div class="mt-3 flex flex-wrap items-end gap-2">
+              <UInput v-model="newColorName" placeholder="New color name" size="sm" @keyup.enter="addColor" />
+              <input
+                v-if="colorAttr.displayType === 'swatch'"
+                v-model="newColorHex"
+                type="color"
+                class="h-8 w-10 rounded border border-stone-200"
+              >
+              <UButton
+                size="sm" variant="soft" icon="i-lucide-plus"
+                :loading="addingColor" :disabled="!newColorName.trim()"
+                @click="addColor"
+              >
+                Add color
+              </UButton>
             </div>
           </UFormField>
 
@@ -424,13 +519,14 @@ async function createProduct() {
             <UCheckbox v-model="review.includeReference" label="Use as cover photo" class="mt-2" />
           </div>
 
-          <div v-for="image in review.images" :key="image.shotIndex">
+          <div v-for="image in review.images" :key="image.sceneId">
             <div class="product-media relative aspect-[3/4] rounded-md">
               <img :src="image.dataUrl" alt="" class="h-full w-full object-cover">
               <div v-if="image.regenerating" class="absolute inset-0 flex items-center justify-center bg-white/70">
                 <UIcon name="i-lucide-loader-2" class="size-5 animate-spin" />
               </div>
             </div>
+            <p class="mt-1 text-center text-xs text-stone-400">{{ imageScenes.find(s => s.id === image.sceneId)?.label }}</p>
             <div class="mt-2 flex justify-center gap-1">
               <UButton size="xs" variant="soft" icon="i-lucide-refresh-cw" :disabled="image.regenerating" @click="regenerateImage(image)" />
               <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeImage(image)" />
