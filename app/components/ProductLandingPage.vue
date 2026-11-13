@@ -8,6 +8,8 @@ const sizeGuideOpen = ref(false)
 const quantity = ref(1)
 
 const productRef = computed(() => props.product)
+const imageCount = computed(() => productRef.value?.images.length ?? 0)
+const { onPointerDown, onPointerUp, onPointerCancel } = useSwipeGallery(activeImage, imageCount)
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(productRef)
 
 const { data: settingsRes } = await useAsyncData('landing-store-settings', () => apiFetch<any>('/api/store-settings'))
@@ -78,12 +80,19 @@ function scrollToOrderForm() {
 <template>
   <div class="mx-auto max-w-3xl px-4 pb-28 pt-10 sm:px-6">
     <!-- Gallery -->
-    <div class="product-media aspect-[4/5] rounded-md">
+    <div
+      class="product-media aspect-[4/5] touch-pan-y select-none rounded-md"
+      @pointerdown="onPointerDown"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerCancel"
+    >
       <img
         v-if="product.images[activeImage]"
         :src="product.images[activeImage].url"
         :alt="product.images[activeImage].altText ?? product.name"
         class="h-full w-full object-cover"
+        draggable="false"
+        @dragstart.prevent
       >
       <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
         <UIcon name="i-lucide-image" class="size-10" />

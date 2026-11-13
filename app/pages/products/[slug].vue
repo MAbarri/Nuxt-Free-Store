@@ -17,6 +17,9 @@ const sizeGuideOpen = ref(false)
 const quantity = ref(1)
 const adding = ref(false)
 
+const imageCount = computed(() => product.value?.images.length ?? 0)
+const { onPointerDown, onPointerUp, onPointerCancel } = useSwipeGallery(activeImage, imageCount)
+
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(product)
 
 const { addItem: addCartItem } = useCart()
@@ -57,12 +60,19 @@ async function addToCart() {
     <div class="grid gap-10 lg:grid-cols-2">
       <!-- Gallery -->
       <div>
-        <div class="product-media aspect-[3/4] rounded-md">
+        <div
+          class="product-media aspect-[3/4] touch-pan-y select-none rounded-md"
+          @pointerdown="onPointerDown"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerCancel"
+        >
           <img
             v-if="product.images[activeImage]"
             :src="product.images[activeImage].url"
             :alt="product.images[activeImage].altText ?? product.name"
             class="h-full w-full object-cover"
+            draggable="false"
+            @dragstart.prevent
           >
           <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
             <UIcon name="i-lucide-image" class="size-10" />
