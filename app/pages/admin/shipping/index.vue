@@ -252,8 +252,8 @@ onMounted(load)
       <template #body>
         <form class="space-y-4" @submit.prevent="saveZone">
           <UFormField label="Name"><UInput v-model="zoneForm.name" required class="w-full" /></UFormField>
-          <UFormField label="Free shipping threshold (USD, optional)">
-            <UInputNumber v-model="zoneForm.freeShippingThreshold" :min="0" :step="1" class="w-full" />
+          <UFormField label="Free shipping threshold (DH, optional)">
+            <UInputNumber v-model="zoneForm.freeShippingThreshold" :min="0" :step="1" :step-snapping="false" class="w-full" />
           </UFormField>
           <UCheckbox v-model="zoneForm.isActive" label="Active" />
           <div class="flex justify-end gap-2 pt-2">
@@ -268,7 +268,7 @@ onMounted(load)
       <template #body>
         <form class="space-y-4" @submit.prevent="saveRate">
           <UFormField label="City"><UInput v-model="rateForm.city" required class="w-full" /></UFormField>
-          <UFormField label="Fee (USD)"><UInputNumber v-model="rateForm.fee" :min="0" :step="0.5" class="w-full" /></UFormField>
+          <UFormField label="Fee (DH)"><UInputNumber v-model="rateForm.fee" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
           <UCheckbox v-model="rateForm.isActive" label="Active" />
           <div class="flex justify-end gap-2 pt-2">
             <UButton variant="ghost" color="neutral" @click="rateModalOpen = false">Cancel</UButton>

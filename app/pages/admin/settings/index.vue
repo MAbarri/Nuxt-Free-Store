@@ -288,8 +288,8 @@ onMounted(load)
 
       <UCard>
         <template #header><p class="font-medium">Shipping default</p></template>
-        <UFormField label="Default shipping fee (USD)" description="Used when no shipping zones/rates are configured yet.">
-          <UInputNumber v-model="form.defaultShippingFee" :min="0" :step="0.5" class="w-full" />
+        <UFormField label="Default shipping fee (DH)" description="Used when no shipping zones/rates are configured yet.">
+          <UInputNumber v-model="form.defaultShippingFee" :min="0" :step="1" :step-snapping="false" class="w-full" />
         </UFormField>
       </UCard>
 

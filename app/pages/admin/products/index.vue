@@ -200,8 +200,8 @@ onMounted(load)
           <UFormField label="SKU">
             <UInput v-model="createForm.sku" required class="w-full" />
           </UFormField>
-          <UFormField label="Base price (USD)">
-            <UInputNumber v-model="createForm.basePrice" :min="0" :step="0.5" class="w-full" />
+          <UFormField label="Base price (DH)">
+            <UInputNumber v-model="createForm.basePrice" :min="0" :step="1" :step-snapping="false" class="w-full" />
           </UFormField>
           <div class="flex justify-end gap-2 pt-2">
             <UButton variant="ghost" color="neutral" @click="createModalOpen = false">Cancel</UButton>

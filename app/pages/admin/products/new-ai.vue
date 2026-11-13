@@ -451,8 +451,8 @@ async function createProduct() {
 
           <div class="grid grid-cols-2 gap-4">
             <UFormField label="SKU"><UInput v-model="inputForm.sku" required class="w-full" /></UFormField>
-            <UFormField label="Base price (DH)"><UInputNumber v-model="inputForm.basePrice" :min="0" :step="10" class="w-full" /></UFormField>
-            <UFormField label="Compare-at price (DH, optional)"><UInputNumber v-model="inputForm.compareAtPrice" :min="0" :step="10" class="w-full" /></UFormField>
+            <UFormField label="Base price (DH)"><UInputNumber v-model="inputForm.basePrice" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
+            <UFormField label="Compare-at price (DH, optional)"><UInputNumber v-model="inputForm.compareAtPrice" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
           </div>
 
           <UFormField label="Categories">

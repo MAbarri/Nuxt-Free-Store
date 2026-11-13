@@ -726,8 +726,8 @@ onMounted(load)
                 :items="[{ label: 'Draft', value: 'draft' }, { label: 'Active', value: 'active' }, { label: 'Archived', value: 'archived' }]"
               />
             </UFormField>
-            <UFormField label="Base price (USD)"><UInputNumber v-model="form.basePrice" :min="0" :step="0.5" class="w-full" /></UFormField>
-            <UFormField label="Compare-at price (USD)"><UInputNumber v-model="form.compareAtPrice" :min="0" :step="0.5" class="w-full" /></UFormField>
+            <UFormField label="Base price (DH)"><UInputNumber v-model="form.basePrice" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
+            <UFormField label="Compare-at price (DH)"><UInputNumber v-model="form.compareAtPrice" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
           </div>
 
           <UFormField label="Size guide">
@@ -1112,7 +1112,7 @@ onMounted(load)
       <template #body>
         <form class="space-y-4" @submit.prevent="createVariant">
           <UFormField label="SKU"><UInput v-model="variantForm.sku" required class="w-full" /></UFormField>
-          <UFormField label="Price override (USD, optional)"><UInputNumber v-model="variantForm.price" :min="0" :step="0.5" class="w-full" /></UFormField>
+          <UFormField label="Price override (DH, optional)"><UInputNumber v-model="variantForm.price" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
           <UFormField label="Initial stock"><UInputNumber v-model="variantForm.stock" :min="0" class="w-full" /></UFormField>
           <UFormField v-for="attr in attributes" :key="attr.id" :label="attr.name">
             <USelect
