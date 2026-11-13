@@ -12,6 +12,9 @@ interface Category {
   sortOrder: number
 }
 
+type TranslatableLocale = 'en' | 'ar'
+const LOCALE_LABELS: Record<TranslatableLocale, string> = { en: 'English', ar: 'Arabic' }
+
 const toast = useToast()
 const categories = ref<Category[]>([])
 const loading = ref(true)
@@ -20,6 +23,17 @@ const modalOpen = ref(false)
 const editing = ref<Category | null>(null)
 const form = reactive({ name: '', description: '', parentId: '', isActive: true })
 const saving = ref(false)
+
+const activeLocale = ref<TranslatableLocale>('en')
+const translating = ref<TranslatableLocale | null>(null)
+const savingTranslation = ref<TranslatableLocale | null>(null)
+const translationForms = reactive<Record<TranslatableLocale, { name: string, description: string }>>({
+  en: { name: '', description: '' },
+  ar: { name: '', description: '' },
+})
+
+const bulkTranslating = ref(false)
+const bulkProgress = reactive({ done: 0, total: 0 })
 
 async function load() {
   loading.value = true
@@ -40,16 +54,96 @@ function openCreate() {
   form.description = ''
   form.parentId = ''
   form.isActive = true
+  activeLocale.value = 'en'
+  translationForms.en = { name: '', description: '' }
+  translationForms.ar = { name: '', description: '' }
   modalOpen.value = true
 }
 
-function openEdit(category: Category) {
+async function openEdit(category: Category) {
   editing.value = category
   form.name = category.name
   form.description = category.description ?? ''
   form.parentId = category.parentId ?? ''
   form.isActive = category.isActive
+  activeLocale.value = 'en'
+  translationForms.en = { name: '', description: '' }
+  translationForms.ar = { name: '', description: '' }
   modalOpen.value = true
+
+  try {
+    const full = await apiFetch<Category & { translations: Partial<Record<TranslatableLocale, { name: string | null, description: string | null }>> }>(`/api/admin/categories/${category.id}`)
+    for (const locale of ['en', 'ar'] as const) {
+      const t = full.translations?.[locale]
+      translationForms[locale] = { name: t?.name ?? '', description: t?.description ?? '' }
+    }
+  }
+  catch {
+    // Non-fatal — the modal still works for editing the French fields.
+  }
+}
+
+async function aiTranslateLocale(locale: TranslatableLocale) {
+  if (!editing.value) return
+  translating.value = locale
+  try {
+    const result = await apiFetch<{ translations: Record<string, { name: string | null, description: string | null }>, cost: number }>(
+      `/api/admin/categories/${editing.value.id}/ai-translate`,
+      { method: 'POST', body: { locales: [locale] } },
+    )
+    const t = result.translations[locale]
+    translationForms[locale] = { name: t?.name ?? '', description: t?.description ?? '' }
+    toast.add({ title: `Translated into ${LOCALE_LABELS[locale]}`, description: `AI cost: $${result.cost.toFixed(4)} — review before saving`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Translation failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    translating.value = null
+  }
+}
+
+async function saveTranslation(locale: TranslatableLocale) {
+  if (!editing.value) return
+  savingTranslation.value = locale
+  try {
+    const f = translationForms[locale]
+    await apiFetch(`/api/admin/categories/${editing.value.id}/translations/${locale}`, {
+      method: 'PUT',
+      body: { name: f.name || null, description: f.description || null },
+    })
+    toast.add({ title: `${LOCALE_LABELS[locale]} translation saved`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save translation', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    savingTranslation.value = null
+  }
+}
+
+async function translateAllCategories() {
+  if (!confirm('Translate every category into English and Arabic with AI? This overwrites any existing EN/AR translations.')) return
+  bulkTranslating.value = true
+  try {
+    bulkProgress.done = 0
+    bulkProgress.total = categories.value.length
+    let totalCost = 0
+    for (const category of categories.value) {
+      try {
+        const result = await apiFetch<{ cost: number }>(`/api/admin/categories/${category.id}/ai-translate`, { method: 'POST', body: {} })
+        totalCost += result.cost
+      }
+      catch (e) {
+        toast.add({ title: `Failed to translate "${category.name}"`, description: apiErrorMessage(e), color: 'error' })
+      }
+      bulkProgress.done++
+    }
+    toast.add({ title: 'Category translation complete', description: `${categories.value.length} categories — total AI cost: $${totalCost.toFixed(4)}`, color: 'success' })
+  }
+  finally {
+    bulkTranslating.value = false
+  }
 }
 
 async function save() {
@@ -104,9 +198,15 @@ onMounted(load)
       <h1 class="font-display text-2xl">
         Categories
       </h1>
-      <UButton icon="i-lucide-plus" @click="openCreate">
-        New category
-      </UButton>
+      <div class="flex items-center gap-2">
+        <span v-if="bulkTranslating" class="text-sm text-stone-500">{{ bulkProgress.done }}/{{ bulkProgress.total }}</span>
+        <UButton variant="soft" icon="i-lucide-languages" :loading="bulkTranslating" @click="translateAllCategories">
+          Translate all (AI)
+        </UButton>
+        <UButton icon="i-lucide-plus" @click="openCreate">
+          New category
+        </UButton>
+      </div>
     </div>
 
     <div class="mt-6 overflow-hidden rounded-lg border border-stone-200 bg-white">
@@ -169,6 +269,43 @@ onMounted(load)
             <UButton type="submit" :loading="saving">Save</UButton>
           </div>
         </form>
+
+        <div v-if="editing" class="mt-6 border-t border-stone-200 pt-4">
+          <p class="text-sm font-medium">Translations</p>
+          <p class="mt-1 text-sm text-stone-500">
+            French uses the fields above. Generate English/Arabic with AI, review it, then save.
+          </p>
+
+          <div class="mt-3 flex gap-2">
+            <UButton
+              v-for="locale in (['en', 'ar'] as const)" :key="locale"
+              size="xs" :variant="activeLocale === locale ? 'solid' : 'soft'"
+              @click="activeLocale = locale"
+            >
+              {{ LOCALE_LABELS[locale] }}
+            </UButton>
+          </div>
+
+          <div class="mt-3 space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-medium">{{ LOCALE_LABELS[activeLocale] }} content</p>
+              <UButton
+                size="xs" variant="soft" icon="i-lucide-sparkles"
+                :loading="translating === activeLocale"
+                @click="aiTranslateLocale(activeLocale)"
+              >
+                Translate from French
+              </UButton>
+            </div>
+            <UFormField label="Name"><UInput v-model="translationForms[activeLocale].name" class="w-full" /></UFormField>
+            <UFormField label="Description"><UTextarea v-model="translationForms[activeLocale].description" class="w-full" /></UFormField>
+            <div class="flex justify-end">
+              <UButton size="sm" :loading="savingTranslation === activeLocale" @click="saveTranslation(activeLocale)">
+                Save {{ LOCALE_LABELS[activeLocale] }}
+              </UButton>
+            </div>
+          </div>
+        </div>
       </template>
     </UModal>
   </div>

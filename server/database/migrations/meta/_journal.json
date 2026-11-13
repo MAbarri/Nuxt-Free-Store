@@ -15,6 +15,13 @@
       "when": 1794585693135,
       "tag": "0001_quick_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794595069971,
+      "tag": "0002_bouncy_sphinx",
+      "breakpoints": true
     }
   ]
 }

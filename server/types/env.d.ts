@@ -6,4 +6,8 @@ interface Env {
   MEDIA: R2Bucket
   CACHE: KVNamespace
   SESSION_COOKIE_NAME: string
+  // Secret — set via `wrangler secret put OPENROUTER_API_KEY` in production,
+  // and a .dev.vars entry (gitignored) locally. Powers the AI product
+  // creation wizard and catalog translation features.
+  OPENROUTER_API_KEY: string
 }

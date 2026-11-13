@@ -1,8 +1,11 @@
 import { createError, type H3Event } from 'h3'
 import { productsRepository, type ProductInput } from '../repositories/products.repository'
 import { variantsRepository } from '../repositories/variants.repository'
+import { productTranslationsRepository } from '../repositories/productTranslations.repository'
 import { slugify, withUniqueSuffix } from '../utils/slug'
 import { deleteImageFromR2, r2KeyFromUrl } from '../utils/media'
+import { translateProductContent } from '../utils/openrouter'
+import type { TranslatableLocale } from '../utils/locale'
 
 async function uniqueSlug(event: H3Event, base: string, ignoreId?: string): Promise<string> {
   let candidate = slugify(base) || 'product'
@@ -49,13 +52,14 @@ export const productsService = {
     const product = await productsRepository.findById(event, id)
     if (!product) throw createError({ statusCode: 404, statusMessage: 'Product not found' })
 
-    const [categoryIds, images, variants] = await Promise.all([
+    const [categoryIds, images, variants, translations] = await Promise.all([
       productsRepository.getCategoryIds(event, id),
       productsRepository.listImages(event, id),
       variantsRepository.listByProduct(event, id),
+      productTranslationsRepository.mapByProduct(event, id),
     ])
 
-    return { ...product, categoryIds, images, variants }
+    return { ...product, categoryIds, images, variants, translations }
   },
 
   async create(event: H3Event, input: ProductWriteInput) {
@@ -152,5 +156,40 @@ export const productsService = {
       if (key) await deleteImageFromR2(event, key)
     }
     await productsRepository.remove(event, id)
+  },
+
+  /** Manually saves/overrides one locale's translated fields (e.g. from the admin "Translations" tabs). */
+  async upsertTranslation(event: H3Event, id: string, locale: TranslatableLocale, input: Parameters<typeof productTranslationsRepository.upsert>[3]) {
+    await this.get(event, id)
+    return productTranslationsRepository.upsert(event, id, locale, input)
+  },
+
+  /**
+   * AI-translates this product's French content into the given locales
+   * (both by default), overwriting any existing translation for each.
+   * Used by the "Translate with AI" button on the product edit page, and by
+   * bulk "Translate all" on the products list.
+   */
+  async aiTranslate(event: H3Event, id: string, locales: TranslatableLocale[] = ['en', 'ar']) {
+    const product = await this.get(event, id)
+    let cost = 0
+    const translations: Partial<Record<TranslatableLocale, Awaited<ReturnType<typeof productTranslationsRepository.upsert>>>> = {}
+
+    for (const locale of locales) {
+      const { data, cost: callCost } = await translateProductContent(event, {
+        targetLocale: locale,
+        name: product.name,
+        shortDescription: product.shortDescription,
+        description: product.description,
+        seoTitle: product.seoTitle,
+        seoDescription: product.seoDescription,
+        landingBenefits: product.landingBenefits,
+        landingBlocks: product.landingBlocks,
+      })
+      cost += callCost
+      translations[locale] = await productTranslationsRepository.upsert(event, id, locale, data)
+    }
+
+    return { translations, cost }
   },
 }

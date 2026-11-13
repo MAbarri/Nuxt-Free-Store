@@ -124,3 +124,43 @@ export const variantAttributeValues = sqliteTable('variant_attribute_values', {
   uniqueIndex('variant_attribute_values_unique').on(table.variantId, table.attributeValueId),
   index('variant_attribute_values_value_idx').on(table.attributeValueId),
 ]))
+
+// Per-locale overrides of customer-facing product copy. French is never stored
+// here — `products`' own columns ARE the French content (source of truth) —
+// this table only ever holds 'en'/'ar' rows. Any field left null falls back
+// to the product's French value (see server/utils/locale.ts), so a partial
+// translation never shows blank text.
+export const productTranslations = sqliteTable('product_translations', {
+  id: text('id').primaryKey(),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  locale: text('locale', { enum: ['en', 'ar'] }).notNull(),
+  name: text('name'),
+  shortDescription: text('short_description'),
+  description: text('description'),
+  seoTitle: text('seo_title'),
+  seoDescription: text('seo_description'),
+  // Mirrors products.landingBenefits' shape, translated wholesale.
+  landingBenefits: text('landing_benefits', { mode: 'json' }).$type<Array<{ icon?: string, text: string }>>(),
+  // Captions only (images aren't translated), aligned by array index to the
+  // product's own `landingBlocks`.
+  landingBlockCaptions: text('landing_block_captions', { mode: 'json' }).$type<Array<string | null>>(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, table => ([
+  uniqueIndex('product_translations_unique').on(table.productId, table.locale),
+  index('product_translations_product_id_idx').on(table.productId),
+]))
+
+// Same pattern as product_translations: French lives on `categories` itself.
+export const categoryTranslations = sqliteTable('category_translations', {
+  id: text('id').primaryKey(),
+  categoryId: text('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
+  locale: text('locale', { enum: ['en', 'ar'] }).notNull(),
+  name: text('name'),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, table => ([
+  uniqueIndex('category_translations_unique').on(table.categoryId, table.locale),
+  index('category_translations_category_id_idx').on(table.categoryId),
+]))

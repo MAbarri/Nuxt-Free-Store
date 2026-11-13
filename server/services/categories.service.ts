@@ -1,6 +1,9 @@
 import { createError, type H3Event } from 'h3'
 import { categoriesRepository, type CategoryInput } from '../repositories/categories.repository'
+import { categoryTranslationsRepository } from '../repositories/categoryTranslations.repository'
 import { slugify, withUniqueSuffix } from '../utils/slug'
+import { translateCategoryContent } from '../utils/openrouter'
+import type { TranslatableLocale } from '../utils/locale'
 
 async function uniqueSlug(event: H3Event, base: string, ignoreId?: string): Promise<string> {
   let candidate = slugify(base) || 'category'
@@ -30,7 +33,8 @@ export const categoriesService = {
   async get(event: H3Event, id: string) {
     const category = await categoriesRepository.findById(event, id)
     if (!category) throw createError({ statusCode: 404, statusMessage: 'Category not found' })
-    return category
+    const translations = await categoryTranslationsRepository.mapByCategory(event, id)
+    return { ...category, translations }
   },
 
   async create(event: H3Event, input: CategoryWriteInput) {
@@ -58,5 +62,28 @@ export const categoriesService = {
   async remove(event: H3Event, id: string) {
     await this.get(event, id)
     await categoriesRepository.remove(event, id)
+  },
+
+  async upsertTranslation(event: H3Event, id: string, locale: TranslatableLocale, input: Parameters<typeof categoryTranslationsRepository.upsert>[3]) {
+    await this.get(event, id)
+    return categoryTranslationsRepository.upsert(event, id, locale, input)
+  },
+
+  async aiTranslate(event: H3Event, id: string, locales: TranslatableLocale[] = ['en', 'ar']) {
+    const category = await this.get(event, id)
+    let cost = 0
+    const translations: Partial<Record<TranslatableLocale, Awaited<ReturnType<typeof categoryTranslationsRepository.upsert>>>> = {}
+
+    for (const locale of locales) {
+      const { data, cost: callCost } = await translateCategoryContent(event, {
+        targetLocale: locale,
+        name: category.name,
+        description: category.description,
+      })
+      cost += callCost
+      translations[locale] = await categoryTranslationsRepository.upsert(event, id, locale, data)
+    }
+
+    return { translations, cost }
   },
 }

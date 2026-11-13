@@ -6,6 +6,9 @@ import {
   orderItems, sizeGuides,
 } from '../database/schema'
 import { useDb } from '../utils/db'
+import { productTranslationsRepository, type ProductTranslationInput } from '../repositories/productTranslations.repository'
+import { categoryTranslationsRepository } from '../repositories/categoryTranslations.repository'
+import { applyProductTranslation, resolveLocaleFromEvent, type CatalogLocale } from '../utils/locale'
 
 export type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'popularity'
 
@@ -40,6 +43,8 @@ function buildCardDto(
   images: Array<typeof productImages.$inferSelect>,
   variantRows: VariantRow[],
   popularity: Map<string, number>,
+  locale: CatalogLocale,
+  translations: Map<string, ProductTranslationInput>,
 ) {
   const myImages = images.filter(i => i.productId === product.id)
   const myVariants = variantRows.filter(v => v.productId === product.id)
@@ -53,11 +58,13 @@ function buildCardDto(
 
   const swatches = dedupeSwatches(myVariants.filter(v => v.displayType === 'swatch' && v.valueId))
 
+  const localized = applyProductTranslation(product, translations.get(product.id), locale)
+
   return {
     id: product.id,
-    name: product.name,
+    name: localized.name,
     slug: product.slug,
-    shortDescription: product.shortDescription,
+    shortDescription: localized.shortDescription,
     basePrice: product.basePrice,
     compareAtPrice: product.compareAtPrice,
     isFeatured: product.isFeatured,
@@ -84,6 +91,7 @@ function dedupeSwatches(rows: VariantRow[]) {
 export const storefrontCatalogService = {
   async list(event: H3Event, filters: StorefrontListFilters = {}) {
     const db = useDb(event)
+    const locale = resolveLocaleFromEvent(event)
     const page = Math.max(filters.page ?? 1, 1)
     const pageSize = Math.min(Math.max(filters.pageSize ?? 24, 1), 60)
 
@@ -128,17 +136,19 @@ export const storefrontCatalogService = {
     const productIds = rows.map(p => p.id)
     if (!productIds.length) return { rows: [], total: Number(count), page, pageSize }
 
-    const [images, variantRows, popularityRows] = await Promise.all([
+    const [images, variantRows, popularityRows, translationRows] = await Promise.all([
       db.select().from(productImages).where(inArray(productImages.productId, productIds)).orderBy(asc(productImages.sortOrder)),
       this.loadVariantRows(event, productIds),
       db.select({ productId: orderItems.productId, qty: sql<number>`COALESCE(SUM(${orderItems.quantity}), 0)` })
         .from(orderItems).where(inArray(orderItems.productId, productIds)).groupBy(orderItems.productId),
+      locale === 'fr' ? Promise.resolve([]) : productTranslationsRepository.listByProducts(event, productIds),
     ])
 
     const popularity = new Map(popularityRows.filter(r => r.productId).map(r => [r.productId as string, Number(r.qty)]))
+    const translations = new Map(translationRows.filter(t => t.locale === locale).map(t => [t.productId, t]))
 
     return {
-      rows: rows.map(p => buildCardDto(p, images, variantRows, popularity)),
+      rows: rows.map(p => buildCardDto(p, images, variantRows, popularity, locale, translations)),
       total: Number(count),
       page,
       pageSize,
@@ -172,19 +182,32 @@ export const storefrontCatalogService = {
 
   async getBySlug(event: H3Event, slug: string) {
     const db = useDb(event)
+    const locale = resolveLocaleFromEvent(event)
     const [product] = await db.select().from(products)
       .where(and(eq(products.slug, slug), eq(products.status, 'active'), isNull(products.deletedAt)))
       .limit(1)
     if (!product) return null
 
-    const [images, variantRows, categoryRows] = await Promise.all([
+    const [images, variantRows, categoryRows, translation] = await Promise.all([
       db.select().from(productImages).where(eq(productImages.productId, product.id)).orderBy(asc(productImages.sortOrder)),
       this.loadVariantRows(event, [product.id]),
       db.select({ id: categories.id, name: categories.name, slug: categories.slug })
         .from(productCategories)
         .innerJoin(categories, eq(categories.id, productCategories.categoryId))
         .where(eq(productCategories.productId, product.id)),
+      locale === 'fr' ? Promise.resolve(null) : productTranslationsRepository.findOne(event, product.id, locale),
     ])
+
+    const localizedProduct = applyProductTranslation(product, translation, locale)
+
+    const categoryTranslations = locale === 'fr' || !categoryRows.length
+      ? []
+      : await categoryTranslationsRepository.listByCategories(event, categoryRows.map(c => c.id))
+    const categoryTranslationMap = new Map(categoryTranslations.filter(t => t.locale === locale).map(t => [t.categoryId, t]))
+    const localizedCategories = categoryRows.map(c => ({
+      ...c,
+      name: categoryTranslationMap.get(c.id)?.name ?? c.name,
+    }))
 
     const variantIds = [...new Set(variantRows.map(v => v.variantId))]
     const variants = variantIds.map((id) => {
@@ -225,6 +248,6 @@ export const storefrontCatalogService = {
       related = result.rows.filter(r => r.id !== product.id).slice(0, 4)
     }
 
-    return { ...product, images, variants, categories: categoryRows, sizeGuide, related }
+    return { ...localizedProduct, images, variants, categories: localizedCategories, sizeGuide, related }
   },
 }

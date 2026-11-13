@@ -46,13 +46,19 @@ SPEC.md §2, "Deployment mechanism").
 ## 5. Secrets
 
 Non-sensitive config lives in `wrangler.jsonc` under `vars`. Actual secrets
-(if any are ever introduced) should be set with:
+are set with:
 
 ```sh
 npx wrangler secret put SECRET_NAME
 ```
 
-never committed to `wrangler.jsonc`.
+never committed to `wrangler.jsonc`. Currently in use:
+
+- `OPENROUTER_API_KEY` — powers the AI features (catalog translation, the AI
+  product creation wizard). Required in production via the command above,
+  and locally via a `.dev.vars` entry (gitignored, see `.dev.vars` in the
+  repo root). Without it, every AI endpoint returns a clean 500 rather than
+  crashing, but none of the AI features work.
 
 ## Manual fallback
 

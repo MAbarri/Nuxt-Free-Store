@@ -30,6 +30,7 @@ see them.
 | Currency switch to MAD + real product import (gap, not a numbered phase) | ✅ Done |
 | Storefront i18n: French/English/Arabic + RTL (gap, not a numbered phase) | ✅ Done |
 | Real web fonts for fr/en + Arabic pairing (gap, not a numbered phase) | ✅ Done |
+| AI features: OpenRouter integration, catalog translation, AI product wizard (gap, not a numbered phase) | ✅ Done |
 | 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
@@ -581,6 +582,111 @@ across OSes/browsers with no real design intent behind them.
   shipped CSS — checked in both local dev and the live production build,
   including a direct fetch of one of the hashed font URLs returning
   `content-type: font/woff2` with real byte content.
+
+### AI features: OpenRouter integration, catalog translation, AI product wizard (gap, not a numbered phase) — ✅ done
+Added full AI capabilities via **OpenRouter** (one provider/API key for text,
+vision, and image generation — video generation is documented by OpenRouter
+too but intentionally not wired up yet, see below). This shipped two
+connected features: store-wide catalog translation, and an AI product
+creation wizard.
+
+**OpenRouter client** (`server/utils/openrouter.ts`): a thin wrapper, no SDK.
+- Text/vision: `google/gemini-2.5-flash` via `/chat/completions`, with
+  `response_format: { type: 'json_object' }` and a strict prompt describing
+  the exact JSON shape — used for both product-copy generation (reads the
+  reference photo) and translation (pure text).
+- Images: `google/gemini-2.5-flash-image` via the dedicated `/images`
+  endpoint, using `input_references` for image-to-image generation — this is
+  what keeps "same garment, new angle" shots actually consistent with the
+  source photo instead of generating a lookalike. The model caps `n` at 1, so
+  generating N carousel shots means N sequential calls, each with its own
+  angle/setting prompt (front, back, detail, lifestyle).
+- Video: deliberately not implemented. OpenRouter's video API is a separate
+  async submit-then-poll job pattern (`/videos` + polling), a bigger feature
+  on its own — left out of scope for this round, nothing blocks adding it
+  later behind the same client file.
+- Secret: `OPENROUTER_API_KEY`, a `.dev.vars` entry locally and a
+  `wrangler secret put` in production — read via the same
+  `event.context.cloudflare.env.X` pattern as every other binding in this
+  codebase, never exposed to the client.
+
+**Catalog translation (store-wide, not just AI-wizard products).** Product
+and category content was previously single-language (admin's input
+language, shown to everyone regardless of selected UI locale — a deliberate
+earlier decision). That changed: French now stays the base/source-of-truth
+content (the existing `products`/`categories` columns, unchanged), and two
+new tables hold English/Arabic *overrides*:
+- `product_translations` (productId, locale ∈ {en, ar}): name,
+  shortDescription, description, seoTitle, seoDescription, plus translated
+  landing-page benefit bullets and lifestyle captions (captions are aligned
+  by array index to the product's own `landingBlocks`, since images
+  themselves aren't translated).
+- `category_translations` (categoryId, locale ∈ {en, ar}): name,
+  description.
+- Every field is nullable and resolved **field-by-field** with fallback to
+  French (`server/utils/locale.ts`'s `applyProductTranslation` /
+  `applyCategoryTranslation`) — a half-translated product never shows blank
+  text for the untranslated fields.
+- The storefront resolves locale server-side by reading the same
+  `store_locale` cookie the language switcher already writes (see the i18n
+  section above) — no new plumbing, `getCookie(event, 'store_locale')`
+  inside `storefrontCatalog.service.ts` / `storefrontCategories.service.ts`,
+  defaulting to French with no browser detection, consistent with the rest
+  of the i18n system. Verified live: switching to English shows the saved
+  translation; switching to Arabic with no Arabic translation yet falls back
+  to French automatically, not blank.
+- Admin UI: the product edit page and the category editor both gained
+  English/Arabic tabs with a **"Translate from French"** button (calls
+  OpenRouter, fills the tab, still fully editable) plus their own explicit
+  save action — translations are a separate table/endpoint from the main
+  product/category save. Both the products list and categories list also
+  got a **"Translate all (AI)"** bulk action that loops through every
+  row client-side (not a single giant server-side loop, to stay well clear
+  of Worker execution-time limits), showing live progress and a total cost
+  — this is what backfills the existing catalog (Alma/Élise, etc.) in one
+  click; re-running it later overwrites existing translations, which is
+  the intended behavior for a deliberate bulk action.
+- Order line items still snapshot the base/French product name at checkout
+  (unchanged) — locale-aware order history was considered but cut to keep
+  scope bounded; this only affects internal order records, not anything
+  customer-facing on the storefront.
+
+**AI product creation wizard** (`/admin/products/new-ai`), a new path
+alongside (not replacing) manual product creation:
+1. **Input**: upload one reference photo (converted to a base64 data URL
+   client-side, never touches R2 until the final confirm step); pick
+   colors/sizes from the store's *existing* attribute system (matching is
+   locale-aware — this store's attributes are named "Couleur"/"Taille" in
+   French, which the wizard matches alongside the English names); a stock
+   grid, one number per color×size combination; price; compare-at price;
+   categories.
+2. **Generate**: one call writes French name/short+long description/SEO from
+   the photo, immediately followed by French→English and French→Arabic
+   translation of that same copy, so the review step opens with all three
+   languages already populated. A second call generates the requested number
+   (1–4) of additional carousel photos, each depicting the literal same
+   garment from a different angle/setting (front, back, detail, lifestyle).
+3. **Review**: every language tab and every photo is fully editable before
+   anything is persisted; any single generated photo can be regenerated
+   (re-runs just that one shot) or removed; the reference photo can be
+   excluded from the final product too; running AI cost is shown (OpenRouter
+   returns real USD cost per call in its response).
+4. **Confirm**: only then does `POST /api/admin/ai/products`
+   (`server/services/ai.service.ts`) actually create the product — reusing
+   `productsService.create`/`variantsRepository`/`uploadImageToR2` under the
+   hood, no parallel data path. The product's auto-seeded "default" variant
+   (every product gets one on creation, see `productsService.create`) is
+   deleted and replaced by the wizard's real color×size variants to avoid
+   any SKU collision risk.
+- Verified with real OpenRouter calls end-to-end locally and in production:
+  vision-based copy generation, translation, image-to-image generation
+  (visually confirmed the generated photo preserves the exact garment —
+  same buttons/pockets/collar/color/pattern — in a new clean studio angle),
+  and full product creation with 2 variants + 2 images + en/ar translations
+  landing correctly, then cleaned up.
+- Guardrails: nothing is ever auto-saved — every AI step is a distinct,
+  reviewable, re-runnable action; image count is capped at 4 per generation;
+  all AI endpoints are admin-only (`requireAdmin`) and validated (zod).
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further

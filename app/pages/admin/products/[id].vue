@@ -25,6 +25,15 @@ interface Variant {
 interface ProductImage { id: string, url: string, altText: string | null }
 interface LandingBenefit { icon?: string, text: string }
 interface LandingBlock { imageUrl: string, caption?: string }
+interface TranslationFields {
+  name: string | null
+  shortDescription: string | null
+  description: string | null
+  seoTitle: string | null
+  seoDescription: string | null
+  landingBenefits: LandingBenefit[] | null
+  landingBlockCaptions: Array<string | null> | null
+}
 interface Product {
   id: string
   name: string
@@ -45,6 +54,7 @@ interface Product {
   layoutStyle: 'standard' | 'landing'
   landingBenefits: LandingBenefit[] | null
   landingBlocks: LandingBlock[] | null
+  translations: Partial<Record<'en' | 'ar', TranslationFields>>
 }
 interface Category { id: string, name: string }
 interface AttributeValue { id: string, value: string, swatchHex: string | null }
@@ -67,6 +77,42 @@ const form = reactive({
   landingBenefits: [] as LandingBenefit[],
   landingBlocks: [] as LandingBlock[],
 })
+
+// --- Translations (English/Arabic — French is the form above) ---
+type TranslatableLocale = 'en' | 'ar'
+const LOCALE_LABELS: Record<TranslatableLocale, string> = { en: 'English', ar: 'Arabic' }
+const activeLocale = ref<TranslatableLocale>('en')
+const translating = ref<TranslatableLocale | null>(null)
+const savingTranslation = ref<TranslatableLocale | null>(null)
+
+interface TranslationForm {
+  name: string
+  shortDescription: string
+  description: string
+  seoTitle: string
+  seoDescription: string
+  landingBenefits: LandingBenefit[]
+  landingBlockCaptions: string[]
+}
+function emptyTranslationForm(): TranslationForm {
+  return { name: '', shortDescription: '', description: '', seoTitle: '', seoDescription: '', landingBenefits: [], landingBlockCaptions: [] }
+}
+const translationForms = reactive<Record<TranslatableLocale, TranslationForm>>({
+  en: emptyTranslationForm(),
+  ar: emptyTranslationForm(),
+})
+
+function applyTranslationToForm(locale: TranslatableLocale, t: TranslationFields | undefined) {
+  translationForms[locale] = {
+    name: t?.name ?? '',
+    shortDescription: t?.shortDescription ?? '',
+    description: t?.description ?? '',
+    seoTitle: t?.seoTitle ?? '',
+    seoDescription: t?.seoDescription ?? '',
+    landingBenefits: t?.landingBenefits ? t.landingBenefits.map(b => ({ ...b })) : [],
+    landingBlockCaptions: t?.landingBlockCaptions ? t.landingBlockCaptions.map(c => c ?? '') : [],
+  }
+}
 
 async function load() {
   loading.value = true
@@ -97,6 +143,9 @@ async function load() {
     form.layoutStyle = p.layoutStyle ?? 'standard'
     form.landingBenefits = p.landingBenefits ? p.landingBenefits.map(b => ({ ...b })) : []
     form.landingBlocks = p.landingBlocks ? p.landingBlocks.map(b => ({ ...b })) : []
+
+    applyTranslationToForm('en', p.translations?.en)
+    applyTranslationToForm('ar', p.translations?.ar)
   }
   catch (e) {
     toast.add({ title: 'Failed to load product', description: apiErrorMessage(e), color: 'error' })
@@ -223,6 +272,50 @@ async function onBlockImageSelected(e: Event, index: number) {
   finally {
     uploadingBlockIndex.value = null
     input.value = ''
+  }
+}
+
+async function aiTranslateLocale(locale: TranslatableLocale) {
+  translating.value = locale
+  try {
+    const result = await apiFetch<{ translations: Record<string, TranslationFields>, cost: number }>(
+      `/api/admin/products/${productId}/ai-translate`,
+      { method: 'POST', body: { locales: [locale] } },
+    )
+    applyTranslationToForm(locale, result.translations[locale])
+    toast.add({ title: `Translated into ${LOCALE_LABELS[locale]}`, description: `AI cost: $${result.cost.toFixed(4)} — review before saving`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Translation failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    translating.value = null
+  }
+}
+
+async function saveTranslation(locale: TranslatableLocale) {
+  savingTranslation.value = locale
+  try {
+    const f = translationForms[locale]
+    await apiFetch(`/api/admin/products/${productId}/translations/${locale}`, {
+      method: 'PUT',
+      body: {
+        name: f.name || null,
+        shortDescription: f.shortDescription || null,
+        description: f.description || null,
+        seoTitle: f.seoTitle || null,
+        seoDescription: f.seoDescription || null,
+        landingBenefits: form.layoutStyle === 'landing' ? f.landingBenefits.filter(b => b.text.trim()) : null,
+        landingBlockCaptions: form.layoutStyle === 'landing' ? f.landingBlockCaptions : null,
+      },
+    })
+    toast.add({ title: `${LOCALE_LABELS[locale]} translation saved`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save translation', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    savingTranslation.value = null
   }
 }
 
@@ -469,6 +562,75 @@ onMounted(load)
         <UButton :loading="saving" @click="save">
           Save changes
         </UButton>
+      </div>
+    </UCard>
+
+    <UCard class="mt-6">
+      <template #header><p class="font-medium">Translations</p></template>
+      <p class="text-sm text-stone-500">
+        French uses the fields in "Details" above. Generate English/Arabic copy with AI, review it,
+        then save — customers browsing in that language see this instead of the French version
+        (falling back to French for anything left blank).
+      </p>
+
+      <div class="mt-4 flex gap-2">
+        <UButton
+          v-for="locale in (['en', 'ar'] as const)" :key="locale"
+          size="xs" :variant="activeLocale === locale ? 'solid' : 'soft'"
+          @click="activeLocale = locale"
+        >
+          {{ LOCALE_LABELS[locale] }}
+        </UButton>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-medium">{{ LOCALE_LABELS[activeLocale] }} content</p>
+          <UButton
+            size="xs" variant="soft" icon="i-lucide-sparkles"
+            :loading="translating === activeLocale"
+            @click="aiTranslateLocale(activeLocale)"
+          >
+            Translate from French
+          </UButton>
+        </div>
+
+        <UFormField label="Name"><UInput v-model="translationForms[activeLocale].name" class="w-full" /></UFormField>
+        <UFormField label="Short description"><UTextarea v-model="translationForms[activeLocale].shortDescription" class="w-full" /></UFormField>
+        <UFormField label="Description"><UTextarea v-model="translationForms[activeLocale].description" :rows="5" class="w-full" /></UFormField>
+        <UFormField label="SEO title"><UInput v-model="translationForms[activeLocale].seoTitle" class="w-full" /></UFormField>
+        <UFormField label="SEO description"><UTextarea v-model="translationForms[activeLocale].seoDescription" class="w-full" /></UFormField>
+
+        <div v-if="form.layoutStyle === 'landing'">
+          <p class="text-sm font-medium">Benefits</p>
+          <p v-if="!translationForms[activeLocale].landingBenefits.length" class="mt-1 text-sm text-stone-400">
+            Translate to populate, or they'll fall back to the French benefits.
+          </p>
+          <div v-for="(benefit, i) in translationForms[activeLocale].landingBenefits" :key="i" class="mt-2 flex items-center gap-2">
+            <span class="w-8 shrink-0 text-center">{{ benefit.icon }}</span>
+            <UInput v-model="benefit.text" class="w-full" />
+          </div>
+
+          <p class="mt-4 text-sm font-medium">Lifestyle block captions</p>
+          <p v-if="!form.landingBlocks.length" class="mt-1 text-sm text-stone-400">
+            No lifestyle blocks to caption.
+          </p>
+          <div v-for="(block, i) in form.landingBlocks" :key="i" class="mt-2 flex items-center gap-2">
+            <div class="product-media size-10 shrink-0 rounded">
+              <img v-if="block.imageUrl" :src="block.imageUrl" alt="" class="h-full w-full object-cover">
+            </div>
+            <UInput
+              v-model="translationForms[activeLocale].landingBlockCaptions[i]"
+              :placeholder="block.caption || 'Caption…'" class="w-full"
+            />
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <UButton :loading="savingTranslation === activeLocale" @click="saveTranslation(activeLocale)">
+            Save {{ LOCALE_LABELS[activeLocale] }}
+          </UButton>
+        </div>
       </div>
     </UCard>
 

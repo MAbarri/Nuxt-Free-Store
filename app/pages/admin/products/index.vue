@@ -52,6 +52,42 @@ const createModalOpen = ref(false)
 const createForm = reactive({ name: '', sku: '', basePrice: 0 })
 const creating = ref(false)
 
+const bulkTranslating = ref(false)
+const bulkProgress = reactive({ done: 0, total: 0 })
+
+async function translateAllProducts() {
+  if (!confirm('Translate every product into English and Arabic with AI? This calls AI once per product and overwrites any existing EN/AR translations. It uses OpenRouter credits and may take a while.')) return
+  bulkTranslating.value = true
+  try {
+    const all: ProductRow[] = []
+    let page_ = 1
+    for (;;) {
+      const result = await apiFetch<{ rows: ProductRow[], total: number }>('/api/admin/products', { query: { page: page_, pageSize: 100 } })
+      all.push(...result.rows)
+      if (!result.rows.length || all.length >= result.total) break
+      page_++
+    }
+
+    bulkProgress.done = 0
+    bulkProgress.total = all.length
+    let totalCost = 0
+    for (const product of all) {
+      try {
+        const result = await apiFetch<{ cost: number }>(`/api/admin/products/${product.id}/ai-translate`, { method: 'POST', body: {} })
+        totalCost += result.cost
+      }
+      catch (e) {
+        toast.add({ title: `Failed to translate "${product.name}"`, description: apiErrorMessage(e), color: 'error' })
+      }
+      bulkProgress.done++
+    }
+    toast.add({ title: 'Catalog translation complete', description: `${all.length} products — total AI cost: $${totalCost.toFixed(4)}`, color: 'success' })
+  }
+  finally {
+    bulkTranslating.value = false
+  }
+}
+
 async function createProduct() {
   creating.value = true
   try {
@@ -80,9 +116,18 @@ onMounted(load)
       <h1 class="font-display text-2xl">
         Products
       </h1>
-      <UButton icon="i-lucide-plus" @click="createModalOpen = true">
-        New product
-      </UButton>
+      <div class="flex items-center gap-2">
+        <span v-if="bulkTranslating" class="text-sm text-stone-500">{{ bulkProgress.done }}/{{ bulkProgress.total }}</span>
+        <UButton variant="soft" icon="i-lucide-languages" :loading="bulkTranslating" @click="translateAllProducts">
+          Translate all (AI)
+        </UButton>
+        <UButton variant="soft" icon="i-lucide-sparkles" to="/admin/products/new-ai">
+          Create with AI
+        </UButton>
+        <UButton icon="i-lucide-plus" @click="createModalOpen = true">
+          New product
+        </UButton>
+      </div>
     </div>
 
     <div class="mt-4 flex flex-wrap items-end gap-3">
