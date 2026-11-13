@@ -6,10 +6,28 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
 
-  modules: ['@nuxt/ui'],
+  modules: ['@nuxt/ui', '@nuxtjs/i18n'],
 
   ui: {
     colorMode: false,
+  },
+
+  i18n: {
+    locales: [
+      { code: 'fr', language: 'fr-FR', name: 'Français', dir: 'ltr', file: 'fr.json' },
+      { code: 'en', language: 'en-US', name: 'English', dir: 'ltr', file: 'en.json' },
+      { code: 'ar', language: 'ar-MA', name: 'العربية', dir: 'rtl', file: 'ar.json' },
+    ],
+    defaultLocale: 'fr',
+    strategy: 'no_prefix',
+    // No browser-based auto-detection: every visitor sees French by default.
+    // Our own plugin (app/plugins/locale.ts) restores an explicit prior choice from a cookie.
+    detectBrowserLanguage: false,
+    lazy: true,
+    langDir: 'locales',
+    bundle: {
+      optimizeTranslationDirective: false,
+    },
   },
 
   css: ['~/assets/css/main.css'],
@@ -43,7 +61,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      htmlAttrs: { lang: 'en' },
+      htmlAttrs: { lang: 'fr', dir: 'ltr' },
     },
   },
 })

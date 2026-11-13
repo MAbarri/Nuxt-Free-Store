@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 defineProps<{
   products: any[]
   loading?: boolean
@@ -19,8 +21,8 @@ const emit = defineEmits<{ quickview: [slug: string] }>()
   <UEmpty
     v-else-if="!products.length"
     icon="i-lucide-shirt"
-    :title="emptyMessage ?? 'No products found'"
-    description="Try adjusting your filters or check back soon."
+    :title="emptyMessage ?? t('productGrid.noProductsFound')"
+    :description="t('productGrid.tryAdjusting')"
   />
 
   <div v-else class="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">

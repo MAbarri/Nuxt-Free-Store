@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const route = useRoute()
 const slug = route.params.slug as string
 const toast = useToast()
@@ -25,10 +26,10 @@ async function addToCart() {
   adding.value = true
   try {
     await addCartItem(product.value.id, selectedVariant.value.id, quantity.value)
-    toast.add({ title: 'Added to cart', color: 'success' })
+    toast.add({ title: t('product.addedToCart'), color: 'success' })
   }
   catch (e) {
-    toast.add({ title: 'Could not add to cart', description: apiErrorMessage(e), color: 'error' })
+    toast.add({ title: t('product.couldNotAddToCart'), description: apiErrorMessage(e), color: 'error' })
   }
   finally {
     adding.value = false
@@ -84,7 +85,7 @@ async function addToCart() {
         </h1>
 
         <p class="mt-3 text-lg">
-          <span v-if="product.compareAtPrice" class="mr-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
+          <span v-if="product.compareAtPrice" class="me-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
           {{ formatPrice(displayPrice) }}
         </p>
 
@@ -106,7 +107,7 @@ async function addToCart() {
             >
               <span
                 v-if="group.displayType === 'swatch'"
-                class="mr-1.5 inline-block size-3 rounded-full border border-white/50 align-middle"
+                class="me-1.5 inline-block size-3 rounded-full border border-white/50 align-middle"
                 :style="{ backgroundColor: value.swatchHex ?? undefined }"
               />
               {{ value.value }}
@@ -120,19 +121,19 @@ async function addToCart() {
           class="mt-3 text-sm text-stone-500 underline"
           @click="sizeGuideOpen = true"
         >
-          Size guide
+          {{ t('product.sizeGuide') }}
         </button>
 
         <p class="mt-4 text-sm" :class="inStock ? 'text-green-700' : 'text-stone-400'">
-          <UIcon :name="inStock ? 'i-lucide-check-circle' : 'i-lucide-x-circle'" class="mr-1 align-[-2px]" />
-          {{ inStock ? `In stock (${selectedVariant?.stock} available)` : 'Out of stock' }}
-          <span v-if="selectedVariant" class="ml-2 text-stone-400">SKU: {{ selectedVariant.sku }}</span>
+          <UIcon :name="inStock ? 'i-lucide-check-circle' : 'i-lucide-x-circle'" class="me-1 align-[-2px]" />
+          {{ inStock ? t('product.inStock', { count: selectedVariant?.stock }) : t('product.outOfStock') }}
+          <span v-if="selectedVariant" class="ms-2 text-stone-400">{{ t('common.sku') }}: {{ selectedVariant.sku }}</span>
         </p>
 
         <div class="mt-6 flex items-center gap-3">
           <UInputNumber v-model="quantity" :min="1" :max="selectedVariant?.stock ?? 1" class="w-28" />
           <UButton size="xl" :disabled="!inStock" :loading="adding" class="grow" @click="addToCart">
-            Add to cart
+            {{ t('product.addToCart') }}
           </UButton>
         </div>
 
@@ -145,7 +146,7 @@ async function addToCart() {
     <!-- Related products -->
     <section v-if="product.related?.length" class="mt-20">
       <h2 class="font-display text-2xl">
-        You may also like
+        {{ t('product.youMayAlsoLike') }}
       </h2>
       <ProductGrid class="mt-6" :products="product.related" />
     </section>
@@ -153,5 +154,5 @@ async function addToCart() {
     <SizeGuideModal v-if="product.sizeGuide" v-model:open="sizeGuideOpen" :guide="product.sizeGuide" />
   </div>
 
-  <UEmpty v-else icon="i-lucide-shirt" title="Product not found" class="mx-auto max-w-7xl px-4 py-20" />
+  <UEmpty v-else icon="i-lucide-shirt" :title="t('product.notFound')" class="mx-auto max-w-7xl px-4 py-20" />
 </template>

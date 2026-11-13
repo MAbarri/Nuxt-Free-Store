@@ -1,7 +1,10 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 const { data: settings } = await useAsyncData('store-settings-footer', () => apiFetch<any>('/api/store-settings'))
 const storeName = computed(() => settings.value?.storeName ?? 'Atelier Élégance')
 const tagline = computed(() => settings.value?.tagline ?? '')
+const year = new Date().getFullYear()
 </script>
 
 <template>
@@ -17,21 +20,21 @@ const tagline = computed(() => settings.value?.tagline ?? '')
           </p>
         </div>
         <div>
-          <p class="font-medium text-stone-900">Shop</p>
+          <p class="font-medium text-stone-900">{{ t('footer.shopHeading') }}</p>
           <ul class="mt-2 space-y-1">
-            <li><NuxtLink to="/products">All products</NuxtLink></li>
-            <li><NuxtLink to="/categories">Categories</NuxtLink></li>
+            <li><NuxtLink to="/products">{{ t('footer.allProducts') }}</NuxtLink></li>
+            <li><NuxtLink to="/categories">{{ t('footer.categoriesLink') }}</NuxtLink></li>
           </ul>
         </div>
         <div>
-          <p class="font-medium text-stone-900">Support</p>
+          <p class="font-medium text-stone-900">{{ t('footer.supportHeading') }}</p>
           <ul class="mt-2 space-y-1">
-            <li><NuxtLink to="/account/orders">Track an order</NuxtLink></li>
-            <li><NuxtLink to="/">Shipping & returns</NuxtLink></li>
+            <li><NuxtLink to="/account/orders">{{ t('footer.trackOrder') }}</NuxtLink></li>
+            <li><NuxtLink to="/">{{ t('footer.shippingReturns') }}</NuxtLink></li>
           </ul>
         </div>
       </div>
-      <p class="mt-10 text-xs text-stone-400">© {{ new Date().getFullYear() }} {{ storeName }}. Cash on delivery available.</p>
+      <p class="mt-10 text-xs text-stone-400">{{ t('footer.copyright', { year, name: storeName }) }}</p>
     </div>
   </footer>
 </template>

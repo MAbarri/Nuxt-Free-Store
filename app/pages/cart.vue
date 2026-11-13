@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 useHead({ title: 'Your cart — Atelier Élégance' })
 
 const { cart, refresh, updateQuantity, removeItem } = useCart()
@@ -19,16 +20,16 @@ async function changeQuantity(itemId: string, quantity: number) {
 <template>
   <div class="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
     <h1 class="font-display text-3xl">
-      Your cart
+      {{ t('cart.title') }}
     </h1>
 
     <UEmpty
       v-if="!cart.items.length"
       icon="i-lucide-shopping-bag"
-      title="Your cart is empty"
-      description="Browse the collection to find something you'll love."
+      :title="t('cart.emptyTitle')"
+      :description="t('cart.emptyDescription')"
       class="mt-10"
-      :actions="[{ label: 'Shop now', to: '/products' }]"
+      :actions="[{ label: t('common.shopNow'), to: '/products' }]"
     />
 
     <div v-else class="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]">
@@ -44,16 +45,16 @@ async function changeQuantity(itemId: string, quantity: number) {
                   {{ item.productName }}
                 </NuxtLink>
                 <p v-else class="font-medium text-stone-400">{{ item.productName }}</p>
-                <p class="text-xs text-stone-400">SKU: {{ item.sku }}</p>
+                <p class="text-xs text-stone-400">{{ t('common.sku') }}: {{ item.sku }}</p>
               </div>
               <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeItem(item.id)" />
             </div>
 
             <p v-if="!item.available" class="mt-1 text-sm text-red-600">
-              No longer available — please remove this item.
+              {{ t('cart.unavailable') }}
             </p>
             <p v-else-if="item.exceedsStock" class="mt-1 text-sm text-amber-600">
-              Only {{ item.stock }} left in stock.
+              {{ t('cart.onlyLeftInStock', { count: item.stock }) }}
             </p>
 
             <div class="mt-auto flex items-center justify-between pt-2">
@@ -74,14 +75,14 @@ async function changeQuantity(itemId: string, quantity: number) {
 
       <div class="h-fit rounded-lg border border-stone-200 bg-white p-6">
         <div class="flex justify-between text-sm">
-          <span>Subtotal</span>
+          <span>{{ t('common.subtotal') }}</span>
           <span>{{ formatPrice(cart.subtotal) }}</span>
         </div>
         <p class="mt-1 text-xs text-stone-400">
-          Shipping is calculated at checkout.
+          {{ t('cart.shippingCalculatedAtCheckout') }}
         </p>
         <UButton to="/checkout" block size="lg" class="mt-6">
-          Proceed to checkout
+          {{ t('cart.proceedToCheckout') }}
         </UButton>
       </div>
     </div>

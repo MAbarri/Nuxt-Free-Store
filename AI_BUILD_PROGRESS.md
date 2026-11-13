@@ -28,6 +28,7 @@ see them.
 | Store settings admin page (gap, not a numbered phase) | ✅ Done |
 | Landing product pages (gap, not a numbered phase) | ✅ Done |
 | Currency switch to MAD + real product import (gap, not a numbered phase) | ✅ Done |
+| Storefront i18n: French/English/Arabic + RTL (gap, not a numbered phase) | ✅ Done |
 | 11. Testing, security review, and deployment | ❌ Not started |
 
 **Decisions made on the two previously-identified gaps (user confirmed):**
@@ -469,6 +470,78 @@ directly rather than hand-entered.
   clicks), just not for anything awaited at the top of `<script setup>`.
   Verified via curl directly against the live production URL, both before
   (broken) and after (fixed) this change.
+
+### Storefront i18n: French/English/Arabic + RTL (gap, not a numbered phase) — ✅ done
+Full internationalization of the **storefront only** (explicit scope decision
+— the admin dashboard at `/admin/*` stays English-only, same convention as
+the earlier "Atelier Admin" branding decision). Covers UI chrome (buttons,
+labels, nav, form fields, toasts, empty states) — **not** product/category
+content itself, which stays single-language as entered by the admin,
+regardless of the selected site language (also an explicit decision; the
+database has no translation columns/table for product content).
+
+- **Module**: `@nuxtjs/i18n` v10, configured in `nuxt.config.ts` with
+  `strategy: 'no_prefix'` (URLs never change, e.g. `/products/foo` is the
+  same URL in all three languages) and `detectBrowserLanguage: false`.
+  Message files live at `i18n/locales/{fr,en,ar}.json` — note this is
+  `<rootDir>/i18n/locales/`, **not** `app/locales/`; the module's default
+  `restructureDir` convention looks there regardless of `langDir`, and
+  putting them under `app/` causes a build-time ENOENT.
+- **Default language is always French, never auto-detected**: the module's
+  own `detectBrowserLanguage` (which reads `navigator.language`/
+  `Accept-Language`) is deliberately disabled. Instead, `app/plugins/
+  locale.ts` manages a single cookie (`store_locale`) that is *only* ever
+  written when a visitor explicitly picks a language via the switcher — so
+  a first-time visitor always sees French, and a returning visitor who
+  switched before sees their explicit choice, with no browser-based
+  detection involved at any point. That plugin uses `nuxtApp.$i18n`
+  rather than the `useI18n()` composable, because `useI18n()` requires an
+  active Vue component `setup()` context, which a plain Nuxt plugin is not
+  (this threw `Must be called at the top of a setup function` until fixed).
+- **Language switcher**: `app/components/LanguageSwitcher.vue`, a small
+  `USelect` in `StorefrontHeader.vue` next to the cart icon. Labels are
+  translated into whatever the *current* UI language is (e.g. shows
+  "Français/Anglais/Arabe" when French is active, "Français/English/Arabic"
+  when English is active, etc.) via `language.fr`/`language.en`/`language.ar`
+  keys in each locale file.
+  - Admin deliberately has no switcher and is unaffected by the cookie even
+    if a customer picked Arabic on the storefront moments earlier — see below.
+- **RTL for Arabic**: each locale in `nuxt.config.ts` declares a `dir`
+  (`'ltr'` for fr/en, `'rtl'` for ar). `app/app.vue` computes `<html lang>`
+  and `<html dir>` reactively from the current locale and sets them via
+  `useHead` — this lives in `app.vue` (not a layout) specifically so it
+  also covers layout-less pages like `/admin/login` (`definePageMeta({
+  layout: false })`), which a per-layout `useHead` call would miss.
+  **Admin pages always force `lang="en" dir="ltr"`** regardless of the
+  storefront's selected locale — checked by `route.path.startsWith('/admin')`
+  in `app.vue`, not by locale, precisely so switching to Arabic on the
+  storefront never visually flips the admin dashboard.
+  - All storefront Tailwind classes using physical direction utilities
+    (`pl-`/`pr-`/`ml-`/`mr-`/`left-`/`right-`/`text-left`/`text-right`) were
+    converted to logical equivalents (`ps-`/`pe-`/`ms-`/`me-`/`start-`/`end-`/
+    `text-start`) so spacing and positioning actually mirror under
+    `dir="rtl"`. Admin pages were left on physical classes since admin is
+    always LTR — **if admin is ever given RTL support later, those classes
+    need the same conversion.**
+- **This also fixed a previously-flagged bug**: `ProductLandingPage.vue`'s
+  chrome text (used by both imported hodhodshop products) was hardcoded to
+  French regardless of the rest of the store's language, flagged in the
+  prior section as *"if an English-language Landing product is ever added,
+  this component's hardcoded strings need to be revisited."* It's now fully
+  translated like every other storefront component, so it correctly follows
+  whatever language the visitor has selected.
+- Locale JSON files are verified to have **identical key sets** across all
+  three languages (checked via a one-off Node script comparing sorted key
+  paths — no copy-paste typos or missing translations). If more UI strings
+  are added later, keep all three files in sync the same way; a mismatch
+  silently falls back to the key path as literal text instead of erroring.
+- Verified end-to-end via curl against both local dev and production: French
+  default on first visit (no cookie), explicit switch to English/Arabic via
+  cookie persists across pages, `<html lang>`/`<html dir>` flip correctly
+  including on the Arabic-RTL imported Landing product pages, a full
+  add-to-cart → checkout flow renders translated form labels in all three
+  languages, and `/admin/login` plus the post-login admin dashboard stay
+  `lang="en" dir="ltr"` even with an `ar` locale cookie set.
 
 ### Phase 11: Testing, security review, deployment
 - Optionally expand test coverage further

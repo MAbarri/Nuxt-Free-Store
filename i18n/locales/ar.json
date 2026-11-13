@@ -1,0 +1,136 @@
+{
+  "common": {
+    "shopNow": "تسوق الآن",
+    "viewAll": "عرض الكل",
+    "subtotal": "المجموع الفرعي",
+    "shipping": "التوصيل",
+    "total": "المجموع",
+    "free": "مجاني",
+    "sku": "المرجع"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "shop": "المتجر",
+    "categories": "الفئات",
+    "country": "المغرب"
+  },
+  "language": {
+    "label": "اللغة",
+    "fr": "الفرنسية",
+    "en": "الإنجليزية",
+    "ar": "العربية"
+  },
+  "footer": {
+    "shopHeading": "المتجر",
+    "allProducts": "جميع المنتجات",
+    "categoriesLink": "الفئات",
+    "supportHeading": "المساعدة",
+    "trackOrder": "تتبع طلب",
+    "shippingReturns": "التوصيل والإرجاع",
+    "copyright": "© {year} {name}. الدفع عند الاستلام متوفر."
+  },
+  "home": {
+    "heroEyebrow": "الموسم الجديد",
+    "heroCtaDefault": "اكتشف المجموعة",
+    "shopByCategory": "تسوق حسب الفئة",
+    "featured": "مختارات",
+    "newArrivals": "وصل حديثًا"
+  },
+  "cart": {
+    "title": "سلتك",
+    "emptyTitle": "سلتك فارغة",
+    "emptyDescription": "تصفح المجموعة لتجد ما يعجبك.",
+    "unavailable": "لم يعد هذا المنتج متوفرًا — يرجى إزالته.",
+    "onlyLeftInStock": "لم يتبق سوى {count} في المخزون.",
+    "shippingCalculatedAtCheckout": "يتم احتساب رسوم التوصيل عند إتمام الطلب.",
+    "proceedToCheckout": "إتمام الطلب"
+  },
+  "checkout": {
+    "title": "إتمام الطلب",
+    "emptyTitle": "سلتك فارغة",
+    "emptyDescription": "أضف عنصرًا إلى سلتك قبل إتمام الطلب.",
+    "deliveryInformation": "معلومات التوصيل",
+    "fullName": "الاسم الكامل",
+    "phone": "رقم الهاتف",
+    "emailOptional": "البريد الإلكتروني (اختياري)",
+    "city": "المدينة",
+    "address": "عنوان التوصيل الكامل",
+    "deliveryInstructionsOptional": "تعليمات التوصيل (اختياري)",
+    "placeOrder": "تأكيد الطلب — الدفع عند الاستلام",
+    "cashNote": "ادفع نقدًا عند استلام طلبك. لا حاجة لبطاقة بنكية.",
+    "orderSummary": "ملخص الطلب",
+    "enterCity": "أدخل المدينة",
+    "couldNotPlaceOrder": "تعذر تأكيد الطلب"
+  },
+  "wishlist": {
+    "title": "قائمة رغباتك",
+    "emptyTitle": "قائمة رغباتك فارغة",
+    "emptyDescription": "احفظ المنتجات التي تعجبك لتجدها هنا لاحقًا.",
+    "unavailable": "غير متوفر"
+  },
+  "categoriesPage": {
+    "title": "الفئات",
+    "empty": "لا توجد فئات بعد"
+  },
+  "shop": {
+    "title": "المتجر",
+    "searchPlaceholder": "ابحث عن منتجات…",
+    "categoriesHeading": "الفئات",
+    "productsCount": "{count} منتج",
+    "sortNewest": "الأحدث",
+    "sortPriceAsc": "السعر: من الأقل إلى الأعلى",
+    "sortPriceDesc": "السعر: من الأعلى إلى الأقل",
+    "sortPopularity": "الأكثر رواجًا",
+    "noProductsInCategory": "لا توجد منتجات في هذه الفئة بعد"
+  },
+  "productCard": {
+    "soldOut": "نفدت الكمية",
+    "sale": "تخفيض",
+    "quickView": "عرض سريع"
+  },
+  "productGrid": {
+    "noProductsFound": "لم يتم العثور على منتجات",
+    "tryAdjusting": "حاول تعديل المرشحات أو عد لاحقًا."
+  },
+  "quickView": {
+    "viewFullDetails": "عرض كل التفاصيل"
+  },
+  "product": {
+    "sizeGuide": "دليل المقاسات",
+    "inStock": "متوفر ({count} في المخزون)",
+    "outOfStock": "نفدت الكمية",
+    "addToCart": "أضف إلى السلة",
+    "addedToCart": "تمت الإضافة إلى السلة",
+    "couldNotAddToCart": "تعذرت الإضافة إلى السلة",
+    "youMayAlsoLike": "قد يعجبك أيضًا",
+    "notFound": "المنتج غير موجود"
+  },
+  "landing": {
+    "sizeGuide": "دليل المقاسات",
+    "inStock": "متوفر ({count} في المخزون)",
+    "outOfStock": "نفدت الكمية",
+    "orderInformation": "معلومات الطلب",
+    "fullName": "الاسم الكامل",
+    "phone": "الهاتف",
+    "city": "المدينة",
+    "address": "عنوان التوصيل",
+    "deliveryInstructionsOptional": "تعليمات التوصيل (اختياري)",
+    "orderNow": "اطلب الآن — الدفع عند الاستلام",
+    "shippingNote": "يتم تأكيد رسوم التوصيل عند مراجعة طلبك. ادفع نقدًا عند الاستلام — لا حاجة لبطاقة بنكية.",
+    "whyYoullLoveIt": "لماذا ستحبه",
+    "orderNowShort": "اطلب الآن",
+    "couldNotPlaceOrder": "تعذر تأكيد الطلب"
+  },
+  "orderConfirmation": {
+    "notFound": "الطلب غير موجود",
+    "thankYou": "شكرًا لك، {name}!",
+    "orderPlaced": "تم تسجيل طلبك {orderNumber} وسيتم الدفع نقدًا عند الاستلام.",
+    "placedOn": "تم الطلب في {date}",
+    "items": "المنتجات",
+    "deliveryTo": "التوصيل إلى",
+    "payment": "الدفع",
+    "cashOnDelivery": "الدفع عند الاستلام",
+    "paymentDueOnDelivery": "الدفع مستحق عند الاستلام",
+    "continueShopping": "مواصلة التسوق"
+  }
+}

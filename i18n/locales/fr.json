@@ -1,0 +1,136 @@
+{
+  "common": {
+    "shopNow": "Acheter maintenant",
+    "viewAll": "Voir tout",
+    "subtotal": "Sous-total",
+    "shipping": "Livraison",
+    "total": "Total",
+    "free": "Gratuit",
+    "sku": "Référence"
+  },
+  "nav": {
+    "home": "Accueil",
+    "shop": "Boutique",
+    "categories": "Catégories",
+    "country": "Maroc"
+  },
+  "language": {
+    "label": "Langue",
+    "fr": "Français",
+    "en": "Anglais",
+    "ar": "Arabe"
+  },
+  "footer": {
+    "shopHeading": "Boutique",
+    "allProducts": "Tous les produits",
+    "categoriesLink": "Catégories",
+    "supportHeading": "Aide",
+    "trackOrder": "Suivre une commande",
+    "shippingReturns": "Livraison et retours",
+    "copyright": "© {year} {name}. Paiement à la livraison disponible."
+  },
+  "home": {
+    "heroEyebrow": "Nouvelle saison",
+    "heroCtaDefault": "Découvrir la collection",
+    "shopByCategory": "Acheter par catégorie",
+    "featured": "Sélection",
+    "newArrivals": "Nouveautés"
+  },
+  "cart": {
+    "title": "Votre panier",
+    "emptyTitle": "Votre panier est vide",
+    "emptyDescription": "Parcourez la collection pour trouver votre bonheur.",
+    "unavailable": "Cet article n'est plus disponible — veuillez le retirer.",
+    "onlyLeftInStock": "Il ne reste que {count} en stock.",
+    "shippingCalculatedAtCheckout": "Les frais de livraison sont calculés au moment du paiement.",
+    "proceedToCheckout": "Passer la commande"
+  },
+  "checkout": {
+    "title": "Commande",
+    "emptyTitle": "Votre panier est vide",
+    "emptyDescription": "Ajoutez un article à votre panier avant de passer commande.",
+    "deliveryInformation": "Informations de livraison",
+    "fullName": "Nom complet",
+    "phone": "Téléphone",
+    "emailOptional": "E-mail (facultatif)",
+    "city": "Ville",
+    "address": "Adresse complète de livraison",
+    "deliveryInstructionsOptional": "Instructions de livraison (facultatif)",
+    "placeOrder": "Commander — Paiement à la livraison",
+    "cashNote": "Payez en espèces à la réception de votre commande. Aucune carte requise.",
+    "orderSummary": "Résumé de la commande",
+    "enterCity": "Saisissez une ville",
+    "couldNotPlaceOrder": "Impossible de passer la commande"
+  },
+  "wishlist": {
+    "title": "Votre liste de souhaits",
+    "emptyTitle": "Votre liste de souhaits est vide",
+    "emptyDescription": "Enregistrez vos coups de cœur pour les retrouver ici.",
+    "unavailable": "Indisponible"
+  },
+  "categoriesPage": {
+    "title": "Catégories",
+    "empty": "Aucune catégorie pour le moment"
+  },
+  "shop": {
+    "title": "Boutique",
+    "searchPlaceholder": "Rechercher des produits…",
+    "categoriesHeading": "Catégories",
+    "productsCount": "{count} produits",
+    "sortNewest": "Nouveautés",
+    "sortPriceAsc": "Prix croissant",
+    "sortPriceDesc": "Prix décroissant",
+    "sortPopularity": "Popularité",
+    "noProductsInCategory": "Aucun produit dans cette catégorie pour le moment"
+  },
+  "productCard": {
+    "soldOut": "Épuisé",
+    "sale": "Promo",
+    "quickView": "Aperçu rapide"
+  },
+  "productGrid": {
+    "noProductsFound": "Aucun produit trouvé",
+    "tryAdjusting": "Essayez d'ajuster vos filtres ou revenez bientôt."
+  },
+  "quickView": {
+    "viewFullDetails": "Voir tous les détails"
+  },
+  "product": {
+    "sizeGuide": "Guide des tailles",
+    "inStock": "En stock ({count} disponibles)",
+    "outOfStock": "Rupture de stock",
+    "addToCart": "Ajouter au panier",
+    "addedToCart": "Ajouté au panier",
+    "couldNotAddToCart": "Impossible d'ajouter au panier",
+    "youMayAlsoLike": "Vous aimerez aussi",
+    "notFound": "Produit introuvable"
+  },
+  "landing": {
+    "sizeGuide": "Guide des tailles",
+    "inStock": "En stock ({count} disponibles)",
+    "outOfStock": "Rupture de stock",
+    "orderInformation": "Informations de commande",
+    "fullName": "Nom complet",
+    "phone": "Téléphone",
+    "city": "Ville",
+    "address": "Adresse de livraison",
+    "deliveryInstructionsOptional": "Instructions de livraison (facultatif)",
+    "orderNow": "Commander — Paiement à la livraison",
+    "shippingNote": "Les frais de livraison sont confirmés lors de la validation de votre commande. Payez en espèces à la réception — aucune carte requise.",
+    "whyYoullLoveIt": "Pourquoi vous allez l'aimer",
+    "orderNowShort": "Commander",
+    "couldNotPlaceOrder": "Impossible de passer la commande"
+  },
+  "orderConfirmation": {
+    "notFound": "Commande introuvable",
+    "thankYou": "Merci, {name} !",
+    "orderPlaced": "Votre commande {orderNumber} a été enregistrée et sera payée en espèces à la livraison.",
+    "placedOn": "Passée le {date}",
+    "items": "Articles",
+    "deliveryTo": "Livraison à",
+    "payment": "Paiement",
+    "cashOnDelivery": "Paiement à la livraison",
+    "paymentDueOnDelivery": "Paiement dû à la livraison",
+    "continueShopping": "Continuer mes achats"
+  }
+}

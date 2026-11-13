@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const open = defineModel<boolean>('open', { default: false })
 const props = defineProps<{ slug: string | null }>()
 
@@ -46,7 +47,7 @@ watch([() => props.slug, open], ([, isOpen]) => {
               {{ product.shortDescription }}
             </p>
             <UButton class="mt-6" block :to="`/products/${product.slug}`" @click="open = false">
-              View full details
+              {{ t('quickView.viewFullDetails') }}
             </UButton>
           </template>
         </div>

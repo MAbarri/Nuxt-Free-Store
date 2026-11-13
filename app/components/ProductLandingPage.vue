@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const props = defineProps<{ product: any }>()
 const toast = useToast()
 
@@ -45,7 +46,7 @@ async function submitOrder() {
   }
   catch (e) {
     submitError.value = apiErrorMessage(e)
-    toast.add({ title: 'Impossible de passer la commande', description: submitError.value, color: 'error' })
+    toast.add({ title: t('landing.couldNotPlaceOrder'), description: submitError.value, color: 'error' })
   }
   finally {
     submitting.value = false
@@ -105,7 +106,7 @@ function scrollToOrderForm() {
     </h1>
 
     <p class="mt-3 text-xl">
-      <span v-if="product.compareAtPrice" class="mr-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
+      <span v-if="product.compareAtPrice" class="me-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
       {{ formatPrice(displayPrice) }}
     </p>
 
@@ -127,7 +128,7 @@ function scrollToOrderForm() {
         >
           <span
             v-if="group.displayType === 'swatch'"
-            class="mr-1.5 inline-block size-3 rounded-full border border-white/50 align-middle"
+            class="me-1.5 inline-block size-3 rounded-full border border-white/50 align-middle"
             :style="{ backgroundColor: value.swatchHex ?? undefined }"
           />
           {{ value.value }}
@@ -141,47 +142,47 @@ function scrollToOrderForm() {
       class="mt-3 text-sm text-stone-500 underline"
       @click="sizeGuideOpen = true"
     >
-      Guide des tailles
+      {{ t('landing.sizeGuide') }}
     </button>
 
     <div class="mt-6 flex items-center gap-3">
       <UInputNumber v-model="quantity" :min="1" :max="selectedVariant?.stock ?? 1" class="w-28" />
       <p class="text-sm" :class="inStock ? 'text-green-700' : 'text-stone-400'">
-        <UIcon :name="inStock ? 'i-lucide-check-circle' : 'i-lucide-x-circle'" class="mr-1 align-[-2px]" />
-        {{ inStock ? `En stock (${selectedVariant?.stock} disponibles)` : 'Rupture de stock' }}
+        <UIcon :name="inStock ? 'i-lucide-check-circle' : 'i-lucide-x-circle'" class="me-1 align-[-2px]" />
+        {{ inStock ? t('landing.inStock', { count: selectedVariant?.stock }) : t('landing.outOfStock') }}
       </p>
     </div>
 
     <!-- Embedded direct-order form: this replaces cart/checkout for Landing-style products -->
     <div ref="orderFormEl" class="mt-8 rounded-lg border border-stone-200 bg-white p-6">
       <h2 class="text-sm font-medium uppercase tracking-wide text-stone-500">
-        Informations de commande
+        {{ t('landing.orderInformation') }}
       </h2>
       <form class="mt-4 space-y-4" @submit.prevent="submitOrder">
-        <UFormField label="Nom complet">
+        <UFormField :label="t('landing.fullName')">
           <UInput v-model="form.fullName" required class="w-full" />
         </UFormField>
-        <UFormField label="Téléphone">
+        <UFormField :label="t('landing.phone')">
           <UInput v-model="form.phone" required class="w-full" />
         </UFormField>
-        <UFormField label="Ville">
+        <UFormField :label="t('landing.city')">
           <UInput v-model="form.city" required class="w-full" />
         </UFormField>
-        <UFormField label="Adresse de livraison">
+        <UFormField :label="t('landing.address')">
           <UTextarea v-model="form.addressLine" required :rows="2" class="w-full" />
         </UFormField>
-        <UFormField label="Instructions de livraison (facultatif)">
+        <UFormField :label="t('landing.deliveryInstructionsOptional')">
           <UTextarea v-model="form.deliveryInstructions" :rows="2" class="w-full" />
         </UFormField>
 
         <UButton type="submit" size="xl" block :disabled="!inStock" :loading="submitting">
-          Commander — Paiement à la livraison
+          {{ t('landing.orderNow') }}
         </UButton>
         <p v-if="submitError" class="text-center text-sm text-red-600">
           {{ submitError }}
         </p>
         <p class="text-center text-xs text-stone-400">
-          Les frais de livraison sont confirmés lors de la validation de votre commande. Payez en espèces à la réception — aucune carte requise.
+          {{ t('landing.shippingNote') }}
         </p>
       </form>
     </div>
@@ -189,7 +190,7 @@ function scrollToOrderForm() {
     <!-- Benefits -->
     <section v-if="product.landingBenefits?.length" class="mt-16">
       <h2 class="font-display text-2xl">
-        Pourquoi vous allez l'aimer
+        {{ t('landing.whyYoullLoveIt') }}
       </h2>
       <ul class="mt-6 space-y-4">
         <li v-for="(benefit, i) in product.landingBenefits" :key="i" class="flex items-start gap-3 text-stone-700">
@@ -234,7 +235,7 @@ function scrollToOrderForm() {
             </p>
           </div>
           <UButton size="lg" :disabled="!inStock" @click="scrollToOrderForm">
-            Commander
+            {{ t('landing.orderNowShort') }}
           </UButton>
         </div>
       </div>

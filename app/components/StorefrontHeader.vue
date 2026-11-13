@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 const { data: settings } = await useAsyncData('store-settings-nav', () => apiFetch<any>('/api/store-settings'))
 const storeName = computed(() => settings.value?.storeName ?? 'Atelier Élégance')
 const announcementBar = computed(() => settings.value?.announcementBar)
@@ -16,9 +18,9 @@ await useAsyncData('cart-init', refreshCart)
     <header class="border-b border-stone-200 bg-stone-50/90 backdrop-blur">
       <div class="mx-auto grid max-w-7xl grid-cols-2 items-center gap-6 px-4 py-5 sm:px-6 md:grid-cols-[1fr_auto_1fr] lg:px-8">
         <nav class="hidden items-center gap-6 text-xs uppercase tracking-wide text-stone-600 md:flex">
-          <NuxtLink to="/" class="hover:text-stone-900">Home</NuxtLink>
-          <NuxtLink to="/products" class="hover:text-stone-900">Shop</NuxtLink>
-          <NuxtLink to="/categories" class="hover:text-stone-900">Categories</NuxtLink>
+          <NuxtLink to="/" class="hover:text-stone-900">{{ t('nav.home') }}</NuxtLink>
+          <NuxtLink to="/products" class="hover:text-stone-900">{{ t('nav.shop') }}</NuxtLink>
+          <NuxtLink to="/categories" class="hover:text-stone-900">{{ t('nav.categories') }}</NuxtLink>
         </nav>
 
         <NuxtLink
@@ -29,9 +31,10 @@ await useAsyncData('cart-init', refreshCart)
         </NuxtLink>
 
         <div class="flex items-center justify-end gap-4 text-xs text-stone-500">
-          <span class="hidden sm:inline">Maroc</span>
+          <span class="hidden sm:inline">{{ t('nav.country') }}</span>
+          <LanguageSwitcher />
           <UChip :text="cart.itemCount" :show="cart.itemCount > 0" size="xs">
-            <UButton to="/cart" icon="i-lucide-shopping-bag" variant="ghost" color="neutral" aria-label="Cart" />
+            <UButton to="/cart" icon="i-lucide-shopping-bag" variant="ghost" color="neutral" :aria-label="t('cart.title')" />
           </UChip>
         </div>
       </div>

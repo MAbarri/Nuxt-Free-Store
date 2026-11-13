@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { t } = useI18n()
+
 interface ProductCardDto {
   id: string
   name: string
@@ -32,21 +34,21 @@ const emit = defineEmits<{ quickview: [slug: string] }>()
 
       <span
         v-if="!product.inStock"
-        class="absolute left-2 top-2 rounded-full bg-stone-900/80 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white"
+        class="absolute start-2 top-2 rounded-full bg-stone-900/80 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white"
       >
-        Sold out
+        {{ t('productCard.soldOut') }}
       </span>
       <span
         v-else-if="product.compareAtPrice"
-        class="absolute left-2 top-2 rounded-full bg-clay-600 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white"
+        class="absolute start-2 top-2 rounded-full bg-clay-600 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white"
       >
-        Sale
+        {{ t('productCard.sale') }}
       </span>
 
       <button
         type="button"
-        class="absolute bottom-2 right-2 rounded-full bg-white/90 p-2 opacity-0 shadow transition group-hover:opacity-100"
-        aria-label="Quick view"
+        class="absolute bottom-2 end-2 rounded-full bg-white/90 p-2 opacity-0 shadow transition group-hover:opacity-100"
+        :aria-label="t('productCard.quickView')"
         @click.prevent="emit('quickview', product.slug)"
       >
         <UIcon name="i-lucide-eye" class="size-4" />
@@ -58,7 +60,7 @@ const emit = defineEmits<{ quickview: [slug: string] }>()
         {{ product.name }}
       </NuxtLink>
       <p class="mt-1 text-sm text-stone-500">
-        <span v-if="product.compareAtPrice" class="mr-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
+        <span v-if="product.compareAtPrice" class="me-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
         <span v-if="product.minPrice !== product.maxPrice">{{ formatPrice(product.minPrice) }}–{{ formatPrice(product.maxPrice) }}</span>
         <span v-else>{{ formatPrice(product.minPrice) }}</span>
       </p>

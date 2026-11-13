@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const route = useRoute()
 const slug = route.params.slug as string
 
@@ -16,6 +17,13 @@ function openQuickView(s: string) {
   quickViewSlug.value = s
   quickViewOpen.value = true
 }
+
+const sortItems = computed(() => [
+  { label: t('shop.sortNewest'), value: 'newest' },
+  { label: t('shop.sortPriceAsc'), value: 'price_asc' },
+  { label: t('shop.sortPriceDesc'), value: 'price_desc' },
+  { label: t('shop.sortPopularity'), value: 'popularity' },
+])
 </script>
 
 <template>
@@ -31,24 +39,16 @@ function openQuickView(s: string) {
 
     <div class="mt-6 flex items-center justify-between">
       <p class="text-sm text-stone-500">
-        {{ total }} products
+        {{ t('shop.productsCount', { count: total }) }}
       </p>
-      <USelect
-        v-model="sort"
-        :items="[
-          { label: 'Newest', value: 'newest' },
-          { label: 'Price: low to high', value: 'price_asc' },
-          { label: 'Price: high to low', value: 'price_desc' },
-          { label: 'Most popular', value: 'popularity' },
-        ]"
-      />
+      <USelect v-model="sort" :items="sortItems" />
     </div>
 
     <ProductGrid
       class="mt-6"
       :products="products"
       :loading="loading"
-      empty-message="No products in this category yet"
+      :empty-message="t('shop.noProductsInCategory')"
       @quickview="openQuickView"
     />
 

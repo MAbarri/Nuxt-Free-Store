@@ -1,24 +1,24 @@
 <script setup lang="ts">
+const { t } = useI18n()
 useHead({ title: 'Your wishlist — Atelier Élégance' })
 
 const { wishlist, refresh, removeItem } = useWishlist()
 await useAsyncData('wishlist-page', refresh)
-
 </script>
 
 <template>
   <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
     <h1 class="font-display text-3xl">
-      Your wishlist
+      {{ t('wishlist.title') }}
     </h1>
 
     <UEmpty
       v-if="!wishlist.items.length"
       icon="i-lucide-heart"
-      title="Your wishlist is empty"
-      description="Save items you love to find them here later."
+      :title="t('wishlist.emptyTitle')"
+      :description="t('wishlist.emptyDescription')"
       class="mt-10"
-      :actions="[{ label: 'Shop now', to: '/products' }]"
+      :actions="[{ label: t('common.shopNow'), to: '/products' }]"
     />
 
     <div v-else class="mt-8 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
@@ -28,8 +28,8 @@ await useAsyncData('wishlist-page', refresh)
           <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
             <UIcon name="i-lucide-image" class="size-8" />
           </div>
-          <span v-if="!item.available" class="absolute left-2 top-2 rounded-full bg-stone-900/80 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white">
-            Unavailable
+          <span v-if="!item.available" class="absolute start-2 top-2 rounded-full bg-stone-900/80 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white">
+            {{ t('wishlist.unavailable') }}
           </span>
         </NuxtLink>
         <div class="mt-3 flex items-start justify-between gap-2">

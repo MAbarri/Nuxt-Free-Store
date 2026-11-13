@@ -1,0 +1,136 @@
+{
+  "common": {
+    "shopNow": "Shop now",
+    "viewAll": "View all",
+    "subtotal": "Subtotal",
+    "shipping": "Shipping",
+    "total": "Total",
+    "free": "Free",
+    "sku": "SKU"
+  },
+  "nav": {
+    "home": "Home",
+    "shop": "Shop",
+    "categories": "Categories",
+    "country": "Morocco"
+  },
+  "language": {
+    "label": "Language",
+    "fr": "French",
+    "en": "English",
+    "ar": "Arabic"
+  },
+  "footer": {
+    "shopHeading": "Shop",
+    "allProducts": "All products",
+    "categoriesLink": "Categories",
+    "supportHeading": "Support",
+    "trackOrder": "Track an order",
+    "shippingReturns": "Shipping & returns",
+    "copyright": "© {year} {name}. Cash on delivery available."
+  },
+  "home": {
+    "heroEyebrow": "New season",
+    "heroCtaDefault": "Shop the collection",
+    "shopByCategory": "Shop by category",
+    "featured": "Featured",
+    "newArrivals": "New arrivals"
+  },
+  "cart": {
+    "title": "Your cart",
+    "emptyTitle": "Your cart is empty",
+    "emptyDescription": "Browse the collection to find something you'll love.",
+    "unavailable": "No longer available — please remove this item.",
+    "onlyLeftInStock": "Only {count} left in stock.",
+    "shippingCalculatedAtCheckout": "Shipping is calculated at checkout.",
+    "proceedToCheckout": "Proceed to checkout"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "emptyTitle": "Your cart is empty",
+    "emptyDescription": "Add something to your cart before checking out.",
+    "deliveryInformation": "Delivery information",
+    "fullName": "Full name",
+    "phone": "Phone number",
+    "emailOptional": "Email (optional)",
+    "city": "City",
+    "address": "Full delivery address",
+    "deliveryInstructionsOptional": "Delivery instructions (optional)",
+    "placeOrder": "Place order — Cash on delivery",
+    "cashNote": "Pay with cash when your order arrives. No card required.",
+    "orderSummary": "Order summary",
+    "enterCity": "Enter city",
+    "couldNotPlaceOrder": "Could not place order"
+  },
+  "wishlist": {
+    "title": "Your wishlist",
+    "emptyTitle": "Your wishlist is empty",
+    "emptyDescription": "Save items you love to find them here later.",
+    "unavailable": "Unavailable"
+  },
+  "categoriesPage": {
+    "title": "Categories",
+    "empty": "No categories yet"
+  },
+  "shop": {
+    "title": "Shop",
+    "searchPlaceholder": "Search products…",
+    "categoriesHeading": "Categories",
+    "productsCount": "{count} products",
+    "sortNewest": "Newest",
+    "sortPriceAsc": "Price: low to high",
+    "sortPriceDesc": "Price: high to low",
+    "sortPopularity": "Most popular",
+    "noProductsInCategory": "No products in this category yet"
+  },
+  "productCard": {
+    "soldOut": "Sold out",
+    "sale": "Sale",
+    "quickView": "Quick view"
+  },
+  "productGrid": {
+    "noProductsFound": "No products found",
+    "tryAdjusting": "Try adjusting your filters or check back soon."
+  },
+  "quickView": {
+    "viewFullDetails": "View full details"
+  },
+  "product": {
+    "sizeGuide": "Size guide",
+    "inStock": "In stock ({count} available)",
+    "outOfStock": "Out of stock",
+    "addToCart": "Add to cart",
+    "addedToCart": "Added to cart",
+    "couldNotAddToCart": "Could not add to cart",
+    "youMayAlsoLike": "You may also like",
+    "notFound": "Product not found"
+  },
+  "landing": {
+    "sizeGuide": "Size guide",
+    "inStock": "In stock ({count} available)",
+    "outOfStock": "Out of stock",
+    "orderInformation": "Order information",
+    "fullName": "Full name",
+    "phone": "Phone number",
+    "city": "City",
+    "address": "Delivery address",
+    "deliveryInstructionsOptional": "Delivery instructions (optional)",
+    "orderNow": "Order now — Cash on delivery",
+    "shippingNote": "Delivery fees are confirmed when your order is reviewed. Pay with cash when it arrives — no card required.",
+    "whyYoullLoveIt": "Why you'll love it",
+    "orderNowShort": "Order now",
+    "couldNotPlaceOrder": "Could not place order"
+  },
+  "orderConfirmation": {
+    "notFound": "Order not found",
+    "thankYou": "Thank you, {name}!",
+    "orderPlaced": "Your order {orderNumber} has been placed and will be paid for in cash on delivery.",
+    "placedOn": "Placed on {date}",
+    "items": "Items",
+    "deliveryTo": "Delivery to",
+    "payment": "Payment",
+    "cashOnDelivery": "Cash on delivery",
+    "paymentDueOnDelivery": "Payment due on delivery",
+    "continueShopping": "Continue shopping"
+  }
+}

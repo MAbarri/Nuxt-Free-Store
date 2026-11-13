@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 useHead({ title: 'Atelier Élégance — Thoughtfully made clothing' })
 
 const { data: settingsRes } = await useAsyncData('home-settings', () => apiFetch<any>('/api/store-settings'))
@@ -34,7 +35,7 @@ function openQuickView(slug: string) {
         class="absolute inset-0 h-full w-full object-cover opacity-70"
       >
       <div class="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-        <p class="text-xs uppercase tracking-widest text-white/70">New season</p>
+        <p class="text-xs uppercase tracking-widest text-white/70">{{ t('home.heroEyebrow') }}</p>
         <h1 class="mt-3 max-w-xl font-display text-4xl sm:text-5xl">
           {{ settings?.hero?.title }}
         </h1>
@@ -42,7 +43,7 @@ function openQuickView(slug: string) {
           {{ settings?.hero?.subtitle }}
         </p>
         <UButton class="mt-8" size="xl" :to="settings?.hero?.ctaHref ?? '/products'">
-          {{ settings?.hero?.ctaLabel ?? 'Shop the collection' }}
+          {{ settings?.hero?.ctaLabel ?? t('home.heroCtaDefault') }}
         </UButton>
       </div>
     </section>
@@ -50,7 +51,7 @@ function openQuickView(slug: string) {
     <!-- Categories -->
     <section v-if="categories.length" class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
       <h2 class="font-display text-2xl">
-        Shop by category
+        {{ t('home.shopByCategory') }}
       </h2>
       <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <NuxtLink
@@ -70,7 +71,7 @@ function openQuickView(slug: string) {
               <UIcon name="i-lucide-shirt" class="size-8" />
             </div>
             <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-            <p class="absolute bottom-3 left-3 font-display text-lg text-white">
+            <p class="absolute bottom-3 start-3 font-display text-lg text-white">
               {{ category.name }}
             </p>
           </div>
@@ -82,10 +83,10 @@ function openQuickView(slug: string) {
     <section v-if="featuredLoading || featured.length" class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between">
         <h2 class="font-display text-2xl">
-          Featured
+          {{ t('home.featured') }}
         </h2>
         <NuxtLink to="/products" class="text-sm uppercase tracking-wide hover:underline">
-          View all
+          {{ t('common.viewAll') }}
         </NuxtLink>
       </div>
       <ProductGrid class="mt-6" :products="featured" :loading="featuredLoading" @quickview="openQuickView" />
@@ -107,10 +108,10 @@ function openQuickView(slug: string) {
     <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between">
         <h2 class="font-display text-2xl">
-          New arrivals
+          {{ t('home.newArrivals') }}
         </h2>
         <NuxtLink to="/products?sort=newest" class="text-sm uppercase tracking-wide hover:underline">
-          View all
+          {{ t('common.viewAll') }}
         </NuxtLink>
       </div>
       <ProductGrid class="mt-6" :products="latest" :loading="latestLoading" @quickview="openQuickView" />
