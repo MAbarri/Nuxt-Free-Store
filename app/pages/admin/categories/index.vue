@@ -21,8 +21,9 @@ const loading = ref(true)
 
 const modalOpen = ref(false)
 const editing = ref<Category | null>(null)
-const form = reactive({ name: '', description: '', parentId: '', isActive: true })
+const form = reactive({ name: '', description: '', parentId: '', isActive: true, imageUrl: null as string | null })
 const saving = ref(false)
+const uploadingImage = ref(false)
 
 const activeLocale = ref<TranslatableLocale>('en')
 const translating = ref<TranslatableLocale | null>(null)
@@ -54,6 +55,7 @@ function openCreate() {
   form.description = ''
   form.parentId = ''
   form.isActive = true
+  form.imageUrl = null
   activeLocale.value = 'en'
   translationForms.en = { name: '', description: '' }
   translationForms.ar = { name: '', description: '' }
@@ -66,6 +68,7 @@ async function openEdit(category: Category) {
   form.description = category.description ?? ''
   form.parentId = category.parentId ?? ''
   form.isActive = category.isActive
+  form.imageUrl = category.imageUrl
   activeLocale.value = 'en'
   translationForms.en = { name: '', description: '' }
   translationForms.ar = { name: '', description: '' }
@@ -154,6 +157,7 @@ async function save() {
       description: form.description || null,
       parentId: form.parentId || null,
       isActive: form.isActive,
+      imageUrl: form.imageUrl,
     }
     if (editing.value) {
       await apiFetch(`/api/admin/categories/${editing.value.id}`, { method: 'PUT', body: payload })
@@ -185,6 +189,30 @@ async function remove(category: Category) {
   }
 }
 
+async function onImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadingImage.value = true
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const res = await $fetch<{ data: { url: string } }>('/api/admin/categories/images', { method: 'POST', body })
+    form.imageUrl = res.data.url
+  }
+  catch (e) {
+    toast.add({ title: 'Image upload failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    uploadingImage.value = false
+    input.value = ''
+  }
+}
+
+function removeImage() {
+  form.imageUrl = null
+}
+
 const parentOptions = computed(() => categories.value
   .filter(c => c.id !== editing.value?.id)
   .map(c => ({ label: c.name, value: c.id })))
@@ -213,6 +241,7 @@ onMounted(load)
       <table class="w-full text-sm">
         <thead class="bg-stone-50 text-left text-xs uppercase tracking-wide text-stone-500">
           <tr>
+            <th class="px-4 py-3" />
             <th class="px-4 py-3">Name</th>
             <th class="px-4 py-3">Slug</th>
             <th class="px-4 py-3">Parent</th>
@@ -222,12 +251,20 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="px-4 py-8 text-center text-stone-400">Loading…</td>
+            <td colspan="6" class="px-4 py-8 text-center text-stone-400">Loading…</td>
           </tr>
           <tr v-else-if="!categories.length">
-            <td colspan="5" class="px-4 py-8 text-center text-stone-400">No categories yet.</td>
+            <td colspan="6" class="px-4 py-8 text-center text-stone-400">No categories yet.</td>
           </tr>
           <tr v-for="category in categories" :key="category.id" class="border-t border-stone-100">
+            <td class="px-4 py-3">
+              <div class="size-10 overflow-hidden rounded bg-stone-100">
+                <img v-if="category.imageUrl" :src="category.imageUrl" :alt="category.name" class="h-full w-full object-cover">
+                <div v-else class="flex h-full w-full items-center justify-center text-stone-300">
+                  <UIcon name="i-lucide-image" class="size-4" />
+                </div>
+              </div>
+            </td>
             <td class="px-4 py-3 font-medium">{{ category.name }}</td>
             <td class="px-4 py-3 text-stone-500">{{ category.slug }}</td>
             <td class="px-4 py-3 text-stone-500">
@@ -255,6 +292,23 @@ onMounted(load)
           </UFormField>
           <UFormField label="Description">
             <UTextarea v-model="form.description" class="w-full" />
+          </UFormField>
+          <UFormField label="Image">
+            <div class="flex items-center gap-3">
+              <div class="product-media size-20 overflow-hidden rounded-md">
+                <img v-if="form.imageUrl" :src="form.imageUrl" alt="" class="h-full w-full object-cover">
+                <div v-else class="flex h-full w-full items-center justify-center text-stone-300">
+                  <UIcon name="i-lucide-image" class="size-6" />
+                </div>
+              </div>
+              <div class="space-y-2">
+                <input type="file" accept="image/*" :disabled="uploadingImage" class="text-sm" @change="onImageSelected">
+                <p v-if="uploadingImage" class="text-xs text-stone-500">Uploading…</p>
+                <UButton v-else-if="form.imageUrl" size="xs" variant="ghost" color="error" @click="removeImage">
+                  Remove image
+                </UButton>
+              </div>
+            </div>
           </UFormField>
           <UFormField label="Parent category">
             <USelect
