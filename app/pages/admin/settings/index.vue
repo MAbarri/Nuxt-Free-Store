@@ -16,6 +16,7 @@ interface Settings {
   storeName: string
   tagline: string
   logoUrl: string | null
+  faviconUrl: string | null
   accentColor: string
   defaultShippingFee: number
   announcementBar: string | null
@@ -37,6 +38,7 @@ const form = reactive({
   storeName: '',
   tagline: '',
   logoUrl: null as string | null,
+  faviconUrl: null as string | null,
   accentColor: '#bb6540',
   defaultShippingFee: 0,
   announcementBar: '' as string | null,
@@ -90,6 +92,7 @@ async function load() {
     form.storeName = settings.storeName
     form.tagline = settings.tagline
     form.logoUrl = settings.logoUrl
+    form.faviconUrl = settings.faviconUrl
     form.accentColor = settings.accentColor
     form.defaultShippingFee = settings.defaultShippingFee / 100
     form.announcementBar = settings.announcementBar ?? ''
@@ -118,6 +121,7 @@ async function save() {
         storeName: form.storeName,
         tagline: form.tagline,
         logoUrl: form.logoUrl,
+        faviconUrl: form.faviconUrl,
         accentColor: form.accentColor,
         defaultShippingFee: Math.round(form.defaultShippingFee * 100),
         announcementBar: form.announcementBar?.trim() || null,
@@ -158,6 +162,27 @@ async function onLogoSelected(e: Event) {
   }
   finally {
     uploadingLogo.value = false
+    input.value = ''
+  }
+}
+
+const uploadingFavicon = ref(false)
+async function onFaviconSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadingFavicon.value = true
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const res = await $fetch<{ data: { url: string } }>('/api/admin/settings/images', { method: 'POST', body })
+    form.faviconUrl = res.data.url
+  }
+  catch (e) {
+    toast.add({ title: 'Favicon upload failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    uploadingFavicon.value = false
     input.value = ''
   }
 }
@@ -311,6 +336,18 @@ onMounted(load)
               <label>
                 <span class="sr-only">Upload logo</span>
                 <input type="file" accept="image/*" :disabled="uploadingLogo" class="text-sm" @change="onLogoSelected">
+              </label>
+            </div>
+          </UFormField>
+          <UFormField label="Favicon" description="Small icon shown in the browser tab. Square image recommended (e.g. 512×512px .png or .ico).">
+            <div class="flex items-center gap-3">
+              <div class="flex size-14 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-50">
+                <img v-if="form.faviconUrl" :src="form.faviconUrl" alt="Favicon" class="h-full w-full object-contain">
+                <UIcon v-else name="i-lucide-image" class="size-6 text-stone-300" />
+              </div>
+              <label>
+                <span class="sr-only">Upload favicon</span>
+                <input type="file" accept="image/*" :disabled="uploadingFavicon" class="text-sm" @change="onFaviconSelected">
               </label>
             </div>
           </UFormField>

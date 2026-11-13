@@ -9,6 +9,7 @@ const DEFAULTS = {
   storeName: 'Atelier Élégance',
   tagline: 'Thoughtfully made clothing, delivered to your door.',
   logoUrl: null as string | null,
+  faviconUrl: null as string | null,
   accentColor: '#bb6540',
   defaultShippingFee: 500, // minor currency unit (cents)
   announcementBar: 'Nouvelle collection · Découvrez votre prochain coup de cœur',

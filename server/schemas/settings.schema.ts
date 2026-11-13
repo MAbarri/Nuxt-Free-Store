@@ -29,6 +29,7 @@ export const settingsUpdateSchema = z.object({
   storeName: z.string().trim().min(1).optional(),
   tagline: z.string().trim().min(1).optional(),
   logoUrl: z.string().trim().min(1).nullable().optional(),
+  faviconUrl: z.string().trim().min(1).nullable().optional(),
   accentColor: z.string().trim().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i, 'Must be a hex color like #bb6540').optional(),
   defaultShippingFee: z.number().int().nonnegative().optional(),
   hero: heroSchema.optional(),

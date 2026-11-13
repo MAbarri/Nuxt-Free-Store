@@ -14,7 +14,12 @@ const dir = computed(() => {
 })
 const lang = computed(() => (isAdmin.value ? 'en' : locale.value))
 
-useHead({ htmlAttrs: { lang, dir } })
+const { data: settingsRes } = await useAsyncData('app-shell-settings', () => apiFetch<any>('/api/store-settings'))
+
+useHead({
+  htmlAttrs: { lang, dir },
+  link: computed(() => settingsRes.value?.faviconUrl ? [{ rel: 'icon', href: settingsRes.value.faviconUrl }] : []),
+})
 </script>
 
 <template>
