@@ -160,6 +160,39 @@ async function cancelOrder() {
   }
 }
 
+// Deterministic (not AI-generated) WhatsApp confirmation message — a
+// confirmation must be factually exact every time, never at risk of
+// drifting/hallucinating like an AI-generated message could.
+const { data: storeSettings } = await useAsyncData('order-whatsapp-settings', () => apiFetch<{ storeName: string }>('/api/store-settings'))
+const storeName = computed(() => storeSettings.value?.storeName ?? 'notre boutique')
+
+function buildWhatsAppMessage(o: OrderDetail): string {
+  const lines = [
+    `Bonjour ${o.customerName},`,
+    '',
+    `Merci pour votre commande ${o.orderNumber} chez ${storeName.value} !`,
+    '',
+    'Récapitulatif :',
+    ...o.items.map(item => `- ${item.quantity} x ${item.productName}${item.variantLabel ? ` (${item.variantLabel})` : ''} — ${formatPrice(item.subtotal)}`),
+    '',
+    `Sous-total : ${formatPrice(o.subtotal)}`,
+    `Livraison : ${formatPrice(o.shippingFee)}`,
+    `Total : ${formatPrice(o.total)}`,
+    '',
+    `Adresse de livraison : ${o.addressLine}, ${o.city}`,
+    '',
+    'Pouvez-vous confirmer votre commande ? Merci beaucoup !',
+  ]
+  return lines.join('\n')
+}
+
+const whatsappUrl = computed(() => {
+  if (!order.value) return null
+  const digits = toInternationalDigitsMA(order.value.customerPhone)
+  if (!digits) return null
+  return `https://wa.me/${digits}?text=${encodeURIComponent(buildWhatsAppMessage(order.value))}`
+})
+
 onMounted(load)
 </script>
 
@@ -172,6 +205,13 @@ onMounted(load)
       </div>
       <div class="flex items-center gap-2">
         <UBadge :color="statusColor[order.status] ?? 'neutral'" variant="subtle">{{ order.status.replace('_', ' ') }}</UBadge>
+        <UButton
+          v-if="whatsappUrl"
+          size="sm" variant="solid" color="success" icon="i-simple-icons-whatsapp"
+          :to="whatsappUrl" target="_blank"
+        >
+          Confirm via WhatsApp
+        </UButton>
         <UButton
           v-if="!['cancelled', 'returned'].includes(order.status)"
           size="sm" variant="soft" color="error"

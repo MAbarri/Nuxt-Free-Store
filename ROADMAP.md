@@ -25,7 +25,7 @@ already arriving, and generating more of the ad/content work by herself.
 | Phase | Status |
 |---|---|
 | A. Customer identity rework (phone-based, account-free) | ✅ Done |
-| B. "Confirm via WhatsApp" button | ❌ Not started |
+| B. "Confirm via WhatsApp" button | ✅ Done |
 | C. Homepage richness (bestsellers + trust badges) | ❌ Not started |
 | D. Upsell / cross-sell (rule-based) | ❌ Not started |
 | E. Reviews & ratings (admin-entered) | ❌ Not started |
