@@ -28,6 +28,12 @@ export const aiTranslateLandingBlocksSchema = z.object({
   captions: z.array(z.string().trim().nullable()).min(1).max(3),
 })
 
+export const aiConfigUpdateSchema = z.object({
+  textModel: z.string().trim().min(1).max(120).optional(),
+  imageModel: z.string().trim().min(1).max(120).optional(),
+  logoWatermarkEnabled: z.boolean().optional(),
+})
+
 const aiLandingBenefitSchema = z.object({
   icon: z.string().trim().max(8).optional(),
   text: z.string().trim().min(1),

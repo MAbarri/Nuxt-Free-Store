@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm'
-import type { H3Event } from 'h3'
+import { createError, type H3Event } from 'h3'
 import { useDb } from '../utils/db'
 import { storeSettings } from '../database/schema'
 import { settingsService } from './settings.service'
@@ -8,6 +8,125 @@ import { productsService } from './products.service'
 import { generateSocialPost } from '../utils/openrouter'
 import { fetchMetaAdsInsights, fetchMetaAdsCampaigns } from '../utils/metaMarketingApi'
 import { fetchTiktokAdsInsights, fetchTiktokAdsCampaigns } from '../utils/tiktokMarketingApi'
+
+export interface SocialPostPromptType {
+  id: string
+  label: string
+  category: 'promotional' | 'product-highlight' | 'engagement' | 'seasonal' | 'social-proof' | 'brand-story'
+  categoryLabel: string
+  /** Style directive appended to the AI's system prompt — see openrouter.ts's generateSocialPost. */
+  instruction: string
+}
+
+// A selectable library of post "angles", grouped by category, for the prompt
+// picker in Marketing → Social post generator (same idea as ai.service.ts's
+// IMAGE_SCENES, but for caption style/angle rather than photo framing).
+export const SOCIAL_POST_PROMPT_TYPES: SocialPostPromptType[] = [
+  {
+    id: 'new-arrival',
+    label: 'New arrival announcement',
+    category: 'promotional',
+    categoryLabel: 'Promotional',
+    instruction: 'Introduce this as a fresh new-arrival, building excitement about it just landing in the store.',
+  },
+  {
+    id: 'discount-sale',
+    label: 'Discount / sale announcement',
+    category: 'promotional',
+    categoryLabel: 'Promotional',
+    instruction: 'Frame this as a discount or sale announcement. Only mention a specific percentage, amount, or end date if one is given in the extra details — otherwise keep the offer generic ("now on sale") rather than inventing numbers.',
+  },
+  {
+    id: 'flash-sale',
+    label: 'Flash sale / urgency',
+    category: 'promotional',
+    categoryLabel: 'Promotional',
+    instruction: 'Create urgency as a flash/limited-time sale — short, punchy, time-pressure language — without inventing a specific deadline unless one is given in the extra details.',
+  },
+  {
+    id: 'limited-stock',
+    label: 'Limited stock',
+    category: 'promotional',
+    categoryLabel: 'Promotional',
+    instruction: 'Emphasize that stock is limited and it could sell out, encouraging the reader to order soon, without inventing an exact remaining quantity.',
+  },
+  {
+    id: 'styling-tip',
+    label: 'Styling tip / how to wear it',
+    category: 'product-highlight',
+    categoryLabel: 'Product highlight',
+    instruction: 'Give a concrete styling tip — how to wear or pair this piece for a specific occasion or look — rather than a generic product pitch.',
+  },
+  {
+    id: 'outfit-pairing',
+    label: 'Outfit pairing idea',
+    category: 'product-highlight',
+    categoryLabel: 'Product highlight',
+    instruction: 'Suggest a full outfit built around this piece (what to pair it with), evoking a complete look rather than describing the item alone.',
+  },
+  {
+    id: 'fabric-quality',
+    label: 'Fabric / quality spotlight',
+    category: 'product-highlight',
+    categoryLabel: 'Product highlight',
+    instruction: 'Focus on the craftsmanship, fabric feel, and quality of this piece — what makes it well-made — based only on what is actually stated in the product info.',
+  },
+  {
+    id: 'poll-question',
+    label: 'Question / poll for followers',
+    category: 'engagement',
+    categoryLabel: 'Engagement',
+    instruction: 'End with a genuine question inviting followers to comment or reply (e.g. how they would style it, which color they prefer), to drive engagement rather than just announcing the product.',
+  },
+  {
+    id: 'this-or-that',
+    label: '"This or that" comparison',
+    category: 'engagement',
+    categoryLabel: 'Engagement',
+    instruction: 'Frame this as a playful "this or that" style comparison post (e.g. dressed up vs. dressed down with this piece), inviting followers to pick a side in the comments.',
+  },
+  {
+    id: 'seasonal-occasion',
+    label: 'Holiday / occasion greeting',
+    category: 'seasonal',
+    categoryLabel: 'Seasonal',
+    instruction: 'Tie this post to a seasonal holiday or occasion (use whatever occasion is named in the extra details; otherwise keep it general-seasonal without naming a specific holiday).',
+  },
+  {
+    id: 'seasonal-collection',
+    label: 'Seasonal collection push',
+    category: 'seasonal',
+    categoryLabel: 'Seasonal',
+    instruction: 'Position this piece as part of the current season\'s collection, evoking that season\'s mood (weather, activities, colors) without naming a specific holiday.',
+  },
+  {
+    id: 'bestseller',
+    label: 'Bestseller / customer favorite',
+    category: 'social-proof',
+    categoryLabel: 'Social proof',
+    instruction: 'Present this as a bestseller or customer favorite, building trust through popularity rather than inventing specific review quotes or numbers.',
+  },
+  {
+    id: 'behind-the-scenes',
+    label: 'Behind-the-scenes / craftsmanship',
+    category: 'brand-story',
+    categoryLabel: 'Brand story',
+    instruction: 'Write this as a behind-the-scenes style post about how this kind of piece is made or chosen, giving a glimpse into the brand\'s care and process rather than a direct sales pitch.',
+  },
+  {
+    id: 'brand-values',
+    label: 'Brand values / mission',
+    category: 'brand-story',
+    categoryLabel: 'Brand story',
+    instruction: 'Connect this piece to the brand\'s broader values or mission (quality, timelessness, thoughtful design), using the product as an example of that philosophy rather than a hard sell.',
+  },
+]
+
+function getSocialPostPromptType(id: string): SocialPostPromptType {
+  const type = SOCIAL_POST_PROMPT_TYPES.find(t => t.id === id)
+  if (!type) throw createError({ statusCode: 422, statusMessage: `Unknown post type: ${id}` })
+  return type
+}
 
 // Ad account/advertiser ids live in the same store_settings key-value table
 // as the rest of the store config, but under a `marketing_` prefix that
@@ -109,8 +228,9 @@ export const marketingService = {
     return { connected: true as const, insights, campaigns }
   },
 
-  /** Generates a ready-to-post caption + hashtags for one product/platform/locale. Not persisted — the admin copies it into the real platform's post composer. */
-  async generateSocialPost(event: H3Event, input: { productId: string, platform: 'instagram' | 'facebook' | 'tiktok', locale: 'fr' | 'en' | 'ar' }) {
+  /** Generates a ready-to-post caption + hashtags for one product/platform/locale/prompt-type. Not persisted — the admin copies it into the real platform's post composer. */
+  async generateSocialPost(event: H3Event, input: { productId: string, platform: 'instagram' | 'facebook' | 'tiktok', locale: 'fr' | 'en' | 'ar', promptTypeId: string, extraNotes?: string | null }) {
+    const promptType = getSocialPostPromptType(input.promptTypeId)
     const [product, settings] = await Promise.all([
       productsService.get(event, input.productId),
       settingsService.getBase(event),
@@ -129,6 +249,8 @@ export const marketingService = {
       shortDescription,
       description,
       priceLabel: `${(product.basePrice / 100).toFixed(2)} DH`,
+      promptInstruction: promptType.instruction,
+      extraNotes: input.extraNotes,
     })
 
     return {

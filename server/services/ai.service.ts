@@ -11,8 +11,17 @@ import { productsService } from './products.service'
 import { productsRepository } from '../repositories/products.repository'
 import { productTranslationsRepository } from '../repositories/productTranslations.repository'
 import { variantsRepository } from '../repositories/variants.repository'
-import { uploadImageToR2, dataUrlToBytes } from '../utils/media'
+import { uploadImageToR2, dataUrlToBytes, readImageFromR2AsDataUrl } from '../utils/media'
 import type { TranslatableLocale } from '../utils/locale'
+import { aiConfigService } from './aiConfig.service'
+import { settingsService } from './settings.service'
+
+/** Resolves the store logo as a data URL for the "add a logo watermark" feature, or `null` if the toggle is off, no logo is configured, or it can't be read — always degrades silently rather than breaking photo generation. Resolved once per generation batch rather than per photo. */
+async function getLogoDataUrlForWatermark(event: H3Event): Promise<string | null> {
+  const [config, settings] = await Promise.all([aiConfigService.getConfig(event), settingsService.getBase(event)])
+  if (!config.logoWatermarkEnabled || !settings.logoUrl) return null
+  return readImageFromR2AsDataUrl(event, settings.logoUrl)
+}
 
 function colorClause(color?: string): string {
   return color
@@ -208,10 +217,11 @@ export const aiService = {
   async generateImages(event: H3Event, input: { imageDataUrl: string, sceneIds: string[], color?: string, stylingNotes?: string }) {
     const images: Array<{ dataUrl: string, sceneId: string }> = []
     let cost = 0
+    const logoDataUrl = await getLogoDataUrlForWatermark(event)
     for (const sceneId of input.sceneIds) {
       const scene = getImageScene(sceneId)
       const prompt = scene.buildPrompt({ color: input.color, stylingNotes: input.stylingNotes })
-      const { data, cost: imgCost } = await generateProductImage(event, { referenceImageDataUrl: input.imageDataUrl, prompt })
+      const { data, cost: imgCost } = await generateProductImage(event, { referenceImageDataUrl: input.imageDataUrl, prompt, logoDataUrl })
       images.push({ dataUrl: data.dataUrl, sceneId })
       cost += imgCost
     }
@@ -223,9 +233,10 @@ export const aiService = {
     const sceneIds = input.sceneIds?.length ? input.sceneIds : pickRandomSceneIds('lifestyle', input.count ?? 2)
     const blocks: Array<{ dataUrl: string, caption: string, sceneId: string }> = []
     let cost = 0
+    const logoDataUrl = await getLogoDataUrlForWatermark(event)
     for (const sceneId of sceneIds) {
       const scene = getImageScene(sceneId)
-      const { data: img, cost: imgCost } = await generateProductImage(event, { referenceImageDataUrl: input.imageDataUrl, prompt: scene.buildPrompt({}) })
+      const { data: img, cost: imgCost } = await generateProductImage(event, { referenceImageDataUrl: input.imageDataUrl, prompt: scene.buildPrompt({}), logoDataUrl })
       cost += imgCost
       const { data: cap, cost: capCost } = await generateLifestyleCaption(event, { imageDataUrl: img.dataUrl, productName: input.productName })
       cost += capCost

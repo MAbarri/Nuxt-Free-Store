@@ -166,6 +166,59 @@ async function onLogoSelected(e: Event) {
   }
 }
 
+// --- AI generation (separate admin-only config — its own storage/endpoints, see aiConfig.service.ts, so its own fetch/save independent of the main settings form above) ---
+interface ModelOption { id: string, name: string, priceLabel: string }
+const modelCatalog = reactive({ text: [] as ModelOption[], image: [] as ModelOption[] })
+const aiConfig = reactive({ textModel: '', imageModel: '', logoWatermarkEnabled: true })
+const loadingAiConfig = ref(true)
+const savingAiConfig = ref(false)
+
+const textModelItems = computed(() => modelCatalog.text.map(m => ({ label: m.name, value: m.id, description: m.priceLabel })))
+const imageModelItems = computed(() => modelCatalog.image.map(m => ({ label: m.name, value: m.id, description: m.priceLabel })))
+
+async function loadAiConfig() {
+  loadingAiConfig.value = true
+  try {
+    const [config, catalog] = await Promise.all([
+      apiFetch<{ textModel: string, imageModel: string, logoWatermarkEnabled: boolean }>('/api/admin/ai/config'),
+      apiFetch<{ text: ModelOption[], image: ModelOption[] }>('/api/admin/ai/models'),
+    ])
+    aiConfig.textModel = config.textModel
+    aiConfig.imageModel = config.imageModel
+    aiConfig.logoWatermarkEnabled = config.logoWatermarkEnabled
+    modelCatalog.text = catalog.text
+    modelCatalog.image = catalog.image
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load AI model list', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    loadingAiConfig.value = false
+  }
+}
+
+async function saveAiConfig() {
+  savingAiConfig.value = true
+  try {
+    await apiFetch('/api/admin/ai/config', { method: 'PUT', body: { ...aiConfig } })
+    toast.add({ title: 'AI settings saved', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save AI settings', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    savingAiConfig.value = false
+  }
+}
+
+function resetAiModelsToDefault() {
+  aiConfig.textModel = 'google/gemini-2.5-flash'
+  aiConfig.imageModel = 'google/gemini-2.5-flash-image'
+}
+
+onMounted(loadAiConfig)
+
+
 const uploadingFavicon = ref(false)
 async function onFaviconSelected(e: Event) {
   const input = e.target as HTMLInputElement
@@ -384,6 +437,49 @@ onMounted(load)
             description="Sends a Purchase event straight from our server for every order, in addition to the browser Pixel — more reliable since it isn't affected by ad blockers. Also requires the FB_CONVERSIONS_ACCESS_TOKEN secret to be set (see docs/DEPLOYMENT.md); it quietly does nothing until that's configured, even if enabled here."
           />
         </UFormField>
+      </UCard>
+
+      <UCard class="lg:col-span-2">
+        <template #header>
+          <div class="flex items-center justify-between">
+            <p class="font-medium">AI generation</p>
+            <UButton size="xs" variant="soft" icon="i-lucide-rotate-ccw" @click="resetAiModelsToDefault">
+              Reset to default models
+            </UButton>
+          </div>
+        </template>
+        <p class="text-sm text-stone-500">
+          Applies to every AI feature across the admin (product copy wizard, translations, SEO, homepage copy, social post captions, photo generation) — not just one page. Prices are per-use hints from OpenRouter's live catalog.
+        </p>
+        <div v-if="loadingAiConfig" class="mt-4">
+          <USkeleton class="h-24" />
+        </div>
+        <template v-else>
+          <div class="mt-4 grid gap-4 md:grid-cols-2">
+            <UFormField label="Text generation model" description="Must support image input too (used to read reference photos). Powers copy, translations, SEO, captions.">
+              <USelectMenu
+                v-model="aiConfig.textModel" value-key="value" label-key="label"
+                :items="textModelItems" placeholder="Choose a text model…" class="w-full"
+              />
+            </UFormField>
+            <UFormField label="Image generation model" description="Must support image-to-image generation. Powers product photos and lifestyle blocks. Non-default choices are experimental.">
+              <USelectMenu
+                v-model="aiConfig.imageModel" value-key="value" label-key="label"
+                :items="imageModelItems" placeholder="Choose an image model…" class="w-full"
+              />
+            </UFormField>
+          </div>
+          <UFormField class="mt-4">
+            <UCheckbox
+              v-model="aiConfig.logoWatermarkEnabled"
+              label="Add logo watermark to AI-generated photos"
+              description="Passes the store logo above to the image model as a second reference and asks it to reproduce it, unmodified, as a small watermark in the photo's bottom-right corner. Model-drawn, not pixel-exact compositing — occasionally imprecise, same as any other instruction given to an image model. Does nothing if no logo is set above."
+            />
+          </UFormField>
+          <UButton class="mt-4" :loading="savingAiConfig" icon="i-lucide-save" @click="saveAiConfig">
+            Save AI settings
+          </UButton>
+        </template>
       </UCard>
 
       <UCard class="lg:col-span-2">

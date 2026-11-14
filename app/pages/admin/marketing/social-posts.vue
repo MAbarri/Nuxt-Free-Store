@@ -8,6 +8,13 @@ interface ProductRow {
   basePrice: number
 }
 
+interface PromptType {
+  id: string
+  label: string
+  category: string
+  categoryLabel: string
+}
+
 interface GeneratedPost {
   caption: string
   hashtags: string[]
@@ -35,6 +42,34 @@ const results = ref<ProductRow[]>([])
 const selectedProduct = ref<ProductRow | null>(null)
 const platform = ref<typeof PLATFORMS[number]['value']>('instagram')
 const locale = ref<typeof LOCALES[number]['value']>('fr')
+
+const promptTypes = ref<PromptType[]>([])
+const promptTypeId = ref<string | null>(null)
+const extraNotes = ref('')
+
+// USelectMenu renders an array-of-arrays as separate labeled groups — one
+// sub-array per post category, each starting with a non-selectable "label"
+// row for the category name, mirroring the wizard's categorized scene picker.
+const promptTypeItems = computed(() => {
+  const groups = new Map<string, { label: string, items: Array<{ type: 'label' | 'item', label: string, value?: string }> }>()
+  for (const type of promptTypes.value) {
+    if (!groups.has(type.category)) {
+      groups.set(type.category, { label: type.categoryLabel, items: [{ type: 'label', label: type.categoryLabel }] })
+    }
+    groups.get(type.category)!.items.push({ type: 'item', label: type.label, value: type.id })
+  }
+  return Array.from(groups.values()).map(g => g.items)
+})
+
+async function loadPromptTypes() {
+  try {
+    promptTypes.value = await apiFetch<PromptType[]>('/api/admin/marketing/social-posts/prompt-types')
+    promptTypeId.value = promptTypes.value[0]?.id ?? null
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load post types', description: apiErrorMessage(e), color: 'error' })
+  }
+}
 
 let searchTimeout: ReturnType<typeof setTimeout> | undefined
 watch(search, () => {
@@ -69,12 +104,18 @@ const generating = ref(false)
 const post = ref<GeneratedPost | null>(null)
 
 async function generate() {
-  if (!selectedProduct.value) return
+  if (!selectedProduct.value || !promptTypeId.value) return
   generating.value = true
   try {
     post.value = await apiFetch<GeneratedPost>('/api/admin/marketing/social-posts/generate', {
       method: 'POST',
-      body: { productId: selectedProduct.value.id, platform: platform.value, locale: locale.value },
+      body: {
+        productId: selectedProduct.value.id,
+        platform: platform.value,
+        locale: locale.value,
+        promptTypeId: promptTypeId.value,
+        extraNotes: extraNotes.value.trim() || undefined,
+      },
     })
     toast.add({ title: 'Post generated', description: `AI cost: $${post.value.cost.toFixed(4)} — review before posting`, color: 'success' })
   }
@@ -97,6 +138,8 @@ async function copyText(text: string, label: string) {
 }
 
 const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#${h}`).join(' ') : '')
+
+onMounted(loadPromptTypes)
 </script>
 
 <template>
@@ -105,12 +148,12 @@ const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#
       Social media post generator
     </h1>
     <p class="text-sm text-stone-500">
-      Pick a product and a platform — AI writes a ready-to-post caption and hashtags you can copy straight into Instagram, Facebook, or TikTok. Nothing is auto-published.
+      Pick a product, a post angle, a platform and a language — AI writes a ready-to-post caption and hashtags you can copy straight into Instagram, Facebook, or TikTok. Nothing is auto-published.
     </p>
 
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
       <UCard>
-        <template #header><p class="font-medium">1. Product</p></template>
+        <template #header><p class="font-medium">1. Product &amp; angle</p></template>
 
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search products by name or SKU…" class="w-full" />
         <div v-if="searching" class="mt-2 text-sm text-stone-400">Searching…</div>
@@ -132,6 +175,17 @@ const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#
           </div>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="selectedProduct = null" />
         </div>
+
+        <UFormField label="Post angle" description="Categorized, searchable — type to filter." class="mt-4">
+          <USelectMenu
+            v-model="promptTypeId" value-key="value" label-key="label"
+            :items="promptTypeItems" placeholder="Choose a post angle…" class="w-full"
+          />
+        </UFormField>
+
+        <UFormField label="Extra details (optional)" description="A discount %, an occasion name, etc. — worked in as-is, never invented by the AI." class="mt-4">
+          <UInput v-model="extraNotes" placeholder="e.g. 20% off until Sunday" class="w-full" />
+        </UFormField>
 
         <template #footer>
           <div class="grid gap-4 md:grid-cols-2">
@@ -160,7 +214,7 @@ const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#
               </div>
             </UFormField>
           </div>
-          <UButton class="mt-4" block :loading="generating" :disabled="!selectedProduct" icon="i-lucide-sparkles" @click="generate">
+          <UButton class="mt-4" block :loading="generating" :disabled="!selectedProduct || !promptTypeId" icon="i-lucide-sparkles" @click="generate">
             Generate post
           </UButton>
         </template>
@@ -174,8 +228,10 @@ const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#
         </p>
 
         <div v-else class="space-y-4">
-          <div v-if="post.imageUrl" class="product-media aspect-square w-32 rounded-md">
-            <img :src="post.imageUrl" :alt="post.productName" class="h-full w-full object-cover">
+          <div v-if="post.imageUrl" class="w-32 max-w-full">
+            <div class="product-media aspect-square rounded-md">
+              <img :src="post.imageUrl" :alt="post.productName" class="h-full w-full object-cover">
+            </div>
           </div>
 
           <UFormField label="Caption">

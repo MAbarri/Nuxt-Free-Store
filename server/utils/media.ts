@@ -62,3 +62,41 @@ export function dataUrlToBytes(dataUrl: string): { data: Uint8Array, contentType
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return { data: bytes, contentType }
 }
+
+/** Encodes raw bytes as base64 in fixed-size chunks — avoids blowing the call stack on `String.fromCharCode(...bytes)` for larger files than `dataUrlToBytes`'s reverse direction typically handles. */
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK_SIZE = 8192
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE))
+  }
+  return btoa(binary)
+}
+
+/**
+ * Reads a `/media/<key>` url (as produced by `uploadImageToR2`, e.g. the
+ * store logo) straight from the R2 binding and returns it as a data URL —
+ * used to hand the logo to the AI image model as a second reference image
+ * (see openrouter.ts's `generateProductImage` logo-watermark support).
+ *
+ * Never throws: returns `null` for anything other than a same-origin
+ * `/media/...` url, a missing binding, or a missing/unreadable object, so a
+ * watermarking feature built on top of this always degrades gracefully
+ * instead of breaking image generation.
+ */
+export async function readImageFromR2AsDataUrl(event: H3Event, url: string): Promise<string | null> {
+  const key = r2KeyFromUrl(url)
+  if (!key) return null
+  const bucket = event.context.cloudflare?.env?.MEDIA
+  if (!bucket) return null
+  try {
+    const object = await bucket.get(key)
+    if (!object) return null
+    const bytes = new Uint8Array(await object.arrayBuffer())
+    const contentType = object.httpMetadata?.contentType || 'image/png'
+    return `data:${contentType};base64,${bytesToBase64(bytes)}`
+  }
+  catch {
+    return null
+  }
+}

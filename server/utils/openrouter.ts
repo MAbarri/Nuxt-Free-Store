@@ -1,4 +1,5 @@
 import { createError, type H3Event } from 'h3'
+import { aiConfigService } from '../services/aiConfig.service'
 
 /**
  * Thin OpenRouter client. Every AI feature in this app (catalog translation,
@@ -10,10 +11,10 @@ import { createError, type H3Event } from 'h3'
  * (reading the reference photo) and pure text (translation). Image model:
  * a model that supports `input_references` for image-to-image generation,
  * which is what makes "same garment, new angle" carousel shots possible.
+ * Both are admin-configurable (Settings → AI models, see aiConfig.service.ts)
+ * — the ids below only matter as fallback defaults, re-exported from there.
  */
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
-const TEXT_MODEL = 'google/gemini-2.5-flash'
-const IMAGE_MODEL = 'google/gemini-2.5-flash-image'
 
 function getApiKey(event: H3Event): string {
   const key = event.context.cloudflare?.env?.OPENROUTER_API_KEY
@@ -61,8 +62,9 @@ async function chatJson<T>(event: H3Event, params: { system: string, userText: s
     userContent.push({ type: 'image_url', image_url: { url: params.imageDataUrl } })
   }
 
+  const model = await aiConfigService.getTextModel(event)
   const json = await openRouterFetch(event, '/chat/completions', {
-    model: TEXT_MODEL,
+    model,
     response_format: { type: 'json_object' },
     temperature: 0.7,
     messages: [
@@ -198,20 +200,38 @@ export interface GeneratedImage {
  * (same garment, different angle/setting per `prompt`). The underlying model
  * only returns one image per call (n is capped at 1), so the wizard calls
  * this once per desired carousel shot.
+ *
+ * When `logoDataUrl` is given (the store's logo, resolved from Settings —
+ * see ai.service.ts's `getLogoDataUrlForWatermark`), it's passed as a second
+ * reference image and the model is instructed to reproduce it, unmodified,
+ * as a small watermark in the photo's bottom-right corner. This is
+ * model-drawn placement, not pixel-exact compositing — Workers has no native
+ * canvas/image-compositing library, so this is the pragmatic option; it can
+ * occasionally be imprecise, same as any other instruction given to an image
+ * model.
  */
 export async function generateProductImage(event: H3Event, params: {
   referenceImageDataUrl: string
   prompt: string
   aspectRatio?: string
+  logoDataUrl?: string | null
 }): Promise<{ data: GeneratedImage, cost: number }> {
+  const inputReferences = [
+    { type: 'image_url', image_url: { url: params.referenceImageDataUrl } },
+  ]
+  let prompt = params.prompt
+  if (params.logoDataUrl) {
+    inputReferences.push({ type: 'image_url', image_url: { url: params.logoDataUrl } })
+    prompt += ' A second reference image is also provided: the brand\'s logo. Reproduce that logo exactly as given — same shape, colors and proportions, never redrawn or distorted — as a small, unobtrusive watermark in the bottom-right corner of the photo, adding a subtle semi-transparent backing behind it only if needed for legibility against the photo.'
+  }
+
+  const model = await aiConfigService.getImageModel(event)
   const json = await openRouterFetch(event, '/images', {
-    model: IMAGE_MODEL,
-    prompt: params.prompt,
+    model,
+    prompt,
     n: 1,
     aspect_ratio: params.aspectRatio ?? '3:4',
-    input_references: [
-      { type: 'image_url', image_url: { url: params.referenceImageDataUrl } },
-    ],
+    input_references: inputReferences,
   })
 
   const entry = json?.data?.[0]
@@ -388,16 +408,22 @@ export async function generateSocialPost(event: H3Event, params: {
   shortDescription: string | null
   description: string | null
   priceLabel: string
+  /** Style directive from the selected prompt type (e.g. "flash sale urgency") — see marketing.service.ts's SOCIAL_POST_PROMPT_TYPES. */
+  promptInstruction?: string
+  /** Free-text specifics the admin wants worked in (a discount %, an occasion name, etc.) — never invented by the AI on its own. */
+  extraNotes?: string | null
 }): Promise<{ data: SocialPostResult, cost: number }> {
   const system = [
     `Write a ${params.platform} post promoting this fashion e-commerce product, written directly in ${SOCIAL_LOCALE_NAMES[params.locale]} (do not translate from another language, write natively).`,
     `Style: ${SOCIAL_PLATFORM_STYLE[params.platform]}`,
+    params.promptInstruction ? `Post angle: ${params.promptInstruction}` : null,
+    params.extraNotes ? `Specific details to work in naturally (do not invent beyond these): ${params.extraNotes}` : null,
     'Never invent claims not supported by the given product info (material, fit, etc.) — focus on style, versatility, and the price as a value point.',
     'Mention the store name naturally at most once, do not overuse it.',
     'Respond with ONLY a JSON object, no markdown fences: { "caption": string, "hashtags": string[] }.',
     '- "caption": the full post text, including line breaks and emoji where natural for the platform, but NOT the hashtags themselves.',
     `- "hashtags": 8 to 15 relevant hashtags (without the # symbol), written in ${SOCIAL_LOCALE_NAMES[params.locale]} where meaningful, mixing broad fashion tags and specific ones about this product.`,
-  ].join('\n')
+  ].filter(Boolean).join('\n')
   const userText = JSON.stringify({
     storeName: params.storeName,
     productName: params.productName,
