@@ -65,6 +65,16 @@ never committed to `wrangler.jsonc`. Currently in use:
   ID set). Get the token from Meta Events Manager → your Pixel → Settings →
   Conversions API → "Generate access token". Without it, Conversion API
   calls simply no-op; checkout and the client-side Pixel are unaffected.
+- `META_ADS_ACCESS_TOKEN` — optional. Powers the read-only Meta ads manager
+  dashboard (Marketing → Meta ads manager). A Marketing API System User
+  access token with `ads_read` on the ad account entered on that page. Get
+  it from Meta Business Settings → Users → System Users → your system user →
+  Generate token (select the ad account and `ads_read`). Without it, that
+  page simply shows "not connected".
+- `TIKTOK_ADS_ACCESS_TOKEN` — optional. Powers the read-only TikTok ads
+  manager dashboard (Marketing → TikTok ads manager). An access token for
+  the advertiser entered on that page, from a TikTok for Business Marketing
+  API app. Without it, that page simply shows "not connected".
 
 ## Manual fallback
 

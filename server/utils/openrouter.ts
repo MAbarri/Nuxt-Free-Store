@@ -365,3 +365,46 @@ export async function translateSettingsContent(event: H3Event, params: {
   const { data, cost } = await chatJson<SettingsTranslationResult>(event, { system, userText })
   return { data, cost }
 }
+
+const SOCIAL_PLATFORM_STYLE: Record<'instagram' | 'facebook' | 'tiktok', string> = {
+  instagram: 'Instagram feed post: short, punchy, emoji-friendly, ends with a soft call to action.',
+  facebook: 'Facebook post: slightly longer and more descriptive than Instagram, warm conversational tone, light emoji use.',
+  tiktok: 'TikTok video caption: casual, trendy, hook in the first sentence, very short.',
+}
+
+const SOCIAL_LOCALE_NAMES: Record<'fr' | 'en' | 'ar', string> = { fr: 'French', en: 'English', ar: 'Modern Standard Arabic' }
+
+export interface SocialPostResult {
+  caption: string
+  hashtags: string[]
+}
+
+/** Writes a ready-to-post social media caption + hashtags for one product, tailored to the given platform's style and written directly in the target locale (not translated afterward). */
+export async function generateSocialPost(event: H3Event, params: {
+  platform: 'instagram' | 'facebook' | 'tiktok'
+  locale: 'fr' | 'en' | 'ar'
+  storeName: string
+  productName: string
+  shortDescription: string | null
+  description: string | null
+  priceLabel: string
+}): Promise<{ data: SocialPostResult, cost: number }> {
+  const system = [
+    `Write a ${params.platform} post promoting this fashion e-commerce product, written directly in ${SOCIAL_LOCALE_NAMES[params.locale]} (do not translate from another language, write natively).`,
+    `Style: ${SOCIAL_PLATFORM_STYLE[params.platform]}`,
+    'Never invent claims not supported by the given product info (material, fit, etc.) — focus on style, versatility, and the price as a value point.',
+    'Mention the store name naturally at most once, do not overuse it.',
+    'Respond with ONLY a JSON object, no markdown fences: { "caption": string, "hashtags": string[] }.',
+    '- "caption": the full post text, including line breaks and emoji where natural for the platform, but NOT the hashtags themselves.',
+    `- "hashtags": 8 to 15 relevant hashtags (without the # symbol), written in ${SOCIAL_LOCALE_NAMES[params.locale]} where meaningful, mixing broad fashion tags and specific ones about this product.`,
+  ].join('\n')
+  const userText = JSON.stringify({
+    storeName: params.storeName,
+    productName: params.productName,
+    shortDescription: params.shortDescription,
+    description: params.description,
+    price: params.priceLabel,
+  })
+  const { data, cost } = await chatJson<SocialPostResult>(event, { system, userText })
+  return { data, cost }
+}

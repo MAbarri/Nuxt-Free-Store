@@ -15,4 +15,14 @@ interface Env {
   // Facebook Conversion API access token. Server-side Purchase event tracking
   // simply no-ops (never breaks checkout) while this is unset.
   FB_CONVERSIONS_ACCESS_TOKEN?: string
+  // Secret, optional — set via `wrangler secret put META_ADS_ACCESS_TOKEN`.
+  // A Meta Marketing API System User access token with `ads_read` on the ad
+  // account configured in Marketing → Meta ads manager. Insights/campaigns
+  // simply show "not connected" while this is unset.
+  META_ADS_ACCESS_TOKEN?: string
+  // Secret, optional — set via `wrangler secret put TIKTOK_ADS_ACCESS_TOKEN`.
+  // A TikTok for Business Marketing API access token for the advertiser
+  // configured in Marketing → TikTok ads manager. Insights/campaigns simply
+  // show "not connected" while this is unset.
+  TIKTOK_ADS_ACCESS_TOKEN?: string
 }

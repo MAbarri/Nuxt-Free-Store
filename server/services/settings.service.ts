@@ -83,10 +83,13 @@ export const settingsService = {
   async getBase(event: H3Event): Promise<StoreSettings> {
     const db = useDb(event)
     const rows = await db.select().from(storeSettings)
-    // Exclude the settings_translation_* rows themselves — they're internal
-    // storage for en/ar overrides, not part of the public/base settings shape.
+    // Exclude settings_translation_* (internal storage for en/ar overrides)
+    // and marketing_* (admin-only ad account ids, see marketing.service.ts) —
+    // neither is part of the public/base settings shape returned to visitors.
     const overrides = Object.fromEntries(
-      rows.filter(row => !row.key.startsWith('settings_translation_')).map(row => [row.key, row.value]),
+      rows
+        .filter(row => !row.key.startsWith('settings_translation_') && !row.key.startsWith('marketing_'))
+        .map(row => [row.key, row.value]),
     )
     return { ...DEFAULTS, ...overrides } as StoreSettings
   },
