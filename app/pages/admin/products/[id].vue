@@ -923,7 +923,7 @@ onMounted(load)
             class="product-media group relative rounded-md"
             :class="{ 'opacity-50': draggingImageKey === image.id }"
           >
-            <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
+            <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-contain">
             <UBadge v-if="i === 0" size="xs" color="primary" variant="solid" class="absolute left-1 top-1">
               Primary
             </UBadge>
@@ -1023,7 +1023,7 @@ onMounted(load)
             No lifestyle blocks yet.
           </p>
           <div v-for="(block, i) in form.landingBlocks" :key="i" class="mt-3 flex gap-3 rounded-md border border-stone-200 p-3">
-            <div class="product-media size-24 shrink-0 rounded-md">
+            <div class="thumb-media size-24 shrink-0 rounded-md">
               <img v-if="block.imageUrl" :src="block.imageUrl" alt="" class="h-full w-full object-cover">
               <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
                 <UIcon name="i-lucide-image" class="size-6" />
@@ -1099,7 +1099,7 @@ onMounted(load)
             No lifestyle blocks to caption.
           </p>
           <div v-for="(block, i) in form.landingBlocks" :key="i" class="mt-2 flex items-center gap-2">
-            <div class="product-media size-10 shrink-0 rounded">
+            <div class="thumb-media size-10 shrink-0 rounded">
               <img v-if="block.imageUrl" :src="block.imageUrl" alt="" class="h-full w-full object-cover">
             </div>
             <UInput
@@ -1171,8 +1171,8 @@ onMounted(load)
       </p>
       <ul v-else class="mt-4 divide-y divide-stone-100">
         <li v-for="(upsell, i) in upsells" :key="upsell.id" class="flex items-center gap-3 py-3">
-          <div class="product-media size-12 shrink-0 rounded-md">
-            <img v-if="upsell.imageUrl" :src="upsell.imageUrl" alt="" class="h-full w-full object-cover">
+          <div class="thumb-media size-12 shrink-0 rounded-md">
+            <img v-if="upsell.imageUrl" :src="upsell.imageUrl" alt="" class="h-full w-full object-contain">
             <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
               <UIcon name="i-lucide-shirt" class="size-5" />
             </div>

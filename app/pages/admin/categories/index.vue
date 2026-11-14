@@ -302,7 +302,7 @@ onMounted(load)
           </UFormField>
           <UFormField label="Image">
             <div class="flex items-center gap-3">
-              <div class="product-media size-20 overflow-hidden rounded-md">
+              <div class="thumb-media size-20 rounded-md">
                 <img v-if="form.imageUrl" :src="form.imageUrl" alt="" class="h-full w-full object-cover">
                 <div v-else class="flex h-full w-full items-center justify-center text-stone-300">
                   <UIcon name="i-lucide-image" class="size-6" />

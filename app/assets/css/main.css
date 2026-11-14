@@ -69,4 +69,16 @@
   .product-media {
     @apply relative aspect-[3/4] w-full overflow-hidden bg-stone-100;
   }
+
+  /*
+   * Small fixed-size thumbnail container (e.g. a 48px photo next to a line
+   * of text). Deliberately NOT `.product-media` plus a `size-*` class:
+   * both set `width`, and `.product-media`'s `width: 100%` wins in the
+   * compiled stylesheet (it's later in this layer, and equal-specificity
+   * rules resolve by source order) — silently stretching the "thumbnail"
+   * to its container's full width instead of the intended fixed square.
+   */
+  .thumb-media {
+    @apply relative overflow-hidden bg-stone-100;
+  }
 }

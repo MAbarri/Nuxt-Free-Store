@@ -103,11 +103,11 @@ function scrollToOrderForm() {
         <button
           v-for="(image, i) in product.images" :key="`rail-${image.id}`"
           type="button"
-          class="aspect-square shrink-0 overflow-hidden rounded-md border"
+          class="aspect-square shrink-0 overflow-hidden rounded-md border bg-stone-100"
           :class="i === activeImage ? 'border-stone-900' : 'border-stone-200'"
           @click="activeImage = i"
         >
-          <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
+          <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-contain">
         </button>
       </div>
 
@@ -121,7 +121,7 @@ function scrollToOrderForm() {
           v-if="product.images[activeImage]"
           :src="product.images[activeImage].url"
           :alt="product.images[activeImage].altText ?? product.name"
-          class="h-full w-full object-cover"
+          class="h-full w-full object-contain"
           draggable="false"
           @dragstart.prevent
         >
@@ -134,11 +134,11 @@ function scrollToOrderForm() {
       <button
         v-for="(image, i) in product.images" :key="image.id"
         type="button"
-        class="size-16 overflow-hidden rounded-md border"
+        class="size-16 overflow-hidden rounded-md border bg-stone-100"
         :class="i === activeImage ? 'border-stone-900' : 'border-stone-200'"
         @click="activeImage = i"
       >
-        <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
+        <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-contain">
       </button>
     </div>
 
@@ -210,8 +210,8 @@ function scrollToOrderForm() {
       :class="{ 'opacity-50': !companion.inStock }"
     >
       <UCheckbox v-model="addCompanion" :disabled="!companion.inStock" />
-      <div class="product-media size-14 shrink-0 rounded-md">
-        <img v-if="companion.imageUrl" :src="companion.imageUrl" :alt="companion.name" class="h-full w-full object-cover">
+      <div class="thumb-media size-14 shrink-0 rounded-md">
+        <img v-if="companion.imageUrl" :src="companion.imageUrl" :alt="companion.name" class="h-full w-full object-contain">
       </div>
       <span class="text-sm">
         {{ t('landing.addCompanion', { name: companion.name, price: formatPrice(companion.price) }) }}

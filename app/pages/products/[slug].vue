@@ -113,7 +113,7 @@ async function addAllCompanionsToCart() {
             v-if="product.images[activeImage]"
             :src="product.images[activeImage].url"
             :alt="product.images[activeImage].altText ?? product.name"
-            class="h-full w-full object-cover"
+            class="h-full w-full object-contain"
             draggable="false"
             @dragstart.prevent
           >
@@ -125,11 +125,11 @@ async function addAllCompanionsToCart() {
           <button
             v-for="(image, i) in product.images" :key="image.id"
             type="button"
-            class="size-16 overflow-hidden rounded-md border"
+            class="size-16 overflow-hidden rounded-md border bg-stone-100"
             :class="i === activeImage ? 'border-stone-900' : 'border-stone-200'"
             @click="activeImage = i"
           >
-            <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
+            <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-contain">
           </button>
         </div>
       </div>
@@ -226,7 +226,7 @@ async function addAllCompanionsToCart() {
         <div v-for="companion in product.upsells" :key="companion.id">
           <NuxtLink :to="`/products/${companion.slug}`" class="block">
             <div class="product-media aspect-[3/4] rounded-md">
-              <img v-if="companion.imageUrl" :src="companion.imageUrl" :alt="companion.name" class="h-full w-full object-cover">
+              <img v-if="companion.imageUrl" :src="companion.imageUrl" :alt="companion.name" class="h-full w-full object-contain">
               <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
                 <UIcon name="i-lucide-shirt" class="size-8" />
               </div>
