@@ -409,10 +409,12 @@ onMounted(load)
           <div class="space-y-4">
             <UFormField label="Hero image (desktop)">
               <div class="space-y-3">
-                <div class="product-media aspect-[16/9] w-72 max-w-full rounded-md">
-                  <img v-if="form.hero.imageUrl" :src="form.hero.imageUrl" alt="Hero" class="h-full w-full object-cover">
-                  <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
-                    <UIcon name="i-lucide-image" class="size-10" />
+                <div class="w-72 max-w-full">
+                  <div class="product-media aspect-[16/9] rounded-md">
+                    <img v-if="form.hero.imageUrl" :src="form.hero.imageUrl" alt="Hero" class="h-full w-full object-cover">
+                    <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+                      <UIcon name="i-lucide-image" class="size-10" />
+                    </div>
                   </div>
                 </div>
                 <label>
@@ -423,10 +425,12 @@ onMounted(load)
             </UFormField>
             <UFormField label="Hero image (mobile)" description="Optional. Shown instead of the desktop image on small screens — use this for a photo framed/cropped for a tall, narrow screen. Falls back to the desktop image if left empty.">
               <div class="space-y-3">
-                <div class="product-media aspect-[3/4] w-40 rounded-md">
-                  <img v-if="form.hero.mobileImageUrl" :src="form.hero.mobileImageUrl" alt="Hero (mobile)" class="h-full w-full object-cover">
-                  <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
-                    <UIcon name="i-lucide-smartphone" class="size-8" />
+                <div class="w-40 max-w-full">
+                  <div class="product-media aspect-[3/4] rounded-md">
+                    <img v-if="form.hero.mobileImageUrl" :src="form.hero.mobileImageUrl" alt="Hero (mobile)" class="h-full w-full object-cover">
+                    <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+                      <UIcon name="i-lucide-smartphone" class="size-8" />
+                    </div>
                   </div>
                 </div>
                 <div class="flex items-center gap-3">
