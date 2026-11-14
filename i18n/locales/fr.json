@@ -34,7 +34,8 @@
     "heroCtaDefault": "Découvrir la collection",
     "shopByCategory": "Acheter par catégorie",
     "featured": "Sélection",
-    "newArrivals": "Nouveautés"
+    "newArrivals": "Nouveautés",
+    "bestsellers": "Les plus demandés"
   },
   "cart": {
     "title": "Votre panier",

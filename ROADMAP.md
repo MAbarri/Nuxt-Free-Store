@@ -26,7 +26,7 @@ already arriving, and generating more of the ad/content work by herself.
 |---|---|
 | A. Customer identity rework (phone-based, account-free) | ✅ Done |
 | B. "Confirm via WhatsApp" button | ✅ Done |
-| C. Homepage richness (bestsellers + trust badges) | ❌ Not started |
+| C. Homepage richness (bestsellers + trust badges) | ✅ Done |
 | D. Upsell / cross-sell (rule-based) | ❌ Not started |
 | E. Reviews & ratings (admin-entered) | ❌ Not started |
 | F. AI ad-copy generator (Meta/TikTok) | ❌ Not started |

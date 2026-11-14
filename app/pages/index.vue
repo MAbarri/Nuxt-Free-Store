@@ -15,12 +15,18 @@ const { data: featuredRes, pending: featuredLoading } = await useAsyncData('home
   apiFetch<{ rows: any[] }>('/api/products', { query: { featured: true, pageSize: 4 } }))
 const featured = computed(() => featuredRes.value?.rows ?? [])
 
+const { data: bestsellersRes, pending: bestsellersLoading } = await useAsyncData('home-bestsellers', () =>
+  apiFetch<{ rows: any[] }>('/api/products', { query: { sort: 'popularity', pageSize: 8 } }))
+const bestsellers = computed(() => (bestsellersRes.value?.rows ?? []).filter(p => p.popularity > 0))
+
 const { data: latestRes, pending: latestLoading } = await useAsyncData('home-latest', () =>
   apiFetch<{ rows: any[] }>('/api/products', { query: { sort: 'newest', pageSize: 8 } }))
 const latest = computed(() => latestRes.value?.rows ?? [])
 
 const { data: categoriesRes } = await useAsyncData('home-categories', () => apiFetch<any[]>('/api/categories'))
 const categories = computed(() => categoriesRes.value ?? [])
+
+const trustBadges = computed(() => settings.value?.trustBadges ?? [])
 
 const quickViewSlug = ref<string | null>(null)
 const quickViewOpen = ref(false)
@@ -101,6 +107,19 @@ function openQuickView(slug: string) {
       <ProductGrid class="mt-6" :products="featured" :loading="featuredLoading" @quickview="openQuickView" />
     </section>
 
+    <!-- Bestsellers -->
+    <section v-if="bestsellersLoading || bestsellers.length" class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between">
+        <h2 class="font-display text-2xl">
+          {{ t('home.bestsellers') }}
+        </h2>
+        <NuxtLink to="/products?sort=popularity" class="text-sm uppercase tracking-wide hover:underline">
+          {{ t('common.viewAll') }}
+        </NuxtLink>
+      </div>
+      <ProductGrid class="mt-6" :products="bestsellers" :loading="bestsellersLoading" @quickview="openQuickView" />
+    </section>
+
     <!-- Promo -->
     <section class="bg-clay-50 py-12">
       <div class="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
@@ -124,6 +143,16 @@ function openQuickView(slug: string) {
         </NuxtLink>
       </div>
       <ProductGrid class="mt-6" :products="latest" :loading="latestLoading" @quickview="openQuickView" />
+    </section>
+
+    <!-- Trust badges (store-wide) -->
+    <section v-if="trustBadges.length" class="mx-auto max-w-7xl border-t border-stone-200 px-4 py-12 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div v-for="(badge, i) in trustBadges" :key="i" class="flex items-center justify-center gap-3 text-sm text-stone-600 sm:justify-start">
+          <span v-if="badge.icon" class="text-lg leading-none">{{ badge.icon }}</span>
+          <span>{{ badge.label }}</span>
+        </div>
+      </div>
     </section>
 
     <QuickViewModal v-model:open="quickViewOpen" :slug="quickViewSlug" />
