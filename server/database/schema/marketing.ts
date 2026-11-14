@@ -15,6 +15,7 @@ export const socialPosts = sqliteTable('social_posts', {
   promptTypeId: text('prompt_type_id').notNull(),
   promptTypeLabel: text('prompt_type_label').notNull(),
   extraNotes: text('extra_notes'),
+  imageInstructions: text('image_instructions'),
   caption: text('caption').notNull(),
   hashtags: text('hashtags', { mode: 'json' }).notNull().$type<string[]>(),
   cost: real('cost').notNull(),

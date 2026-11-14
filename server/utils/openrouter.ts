@@ -196,6 +196,42 @@ export interface GeneratedImage {
 }
 
 /**
+ * Appended to the image prompt whenever a logo watermark is requested (see
+ * ai.service.ts's `getLogoDataUrlForWatermark`). Shared by every image
+ * generation call in the app (product photos, social post images) so the
+ * watermark looks the same everywhere and only needs updating in one place.
+ * Asks for a rounded-corner badge with a clean outline, rather than the logo
+ * floating bare on the photo, for a more polished/professional finish.
+ */
+const LOGO_WATERMARK_INSTRUCTION = ' A second reference image is also provided: the brand\'s logo. Reproduce that logo exactly as given — same shape, colors and proportions, never redrawn or distorted — as a small, unobtrusive watermark in the bottom-right corner of the photo. Place it on a softly rounded-corner (rounded-square or circular) badge, with a thin, clean, professional outline/border around its edge, and a subtle semi-transparent backing behind it only if needed for legibility against the photo.'
+
+async function callImagesEndpoint(event: H3Event, params: {
+  inputReferences: Array<{ type: 'image_url', image_url: { url: string } }>
+  prompt: string
+  aspectRatio: string
+}): Promise<{ data: GeneratedImage, cost: number }> {
+  const model = await aiConfigService.getImageModel(event)
+  const json = await openRouterFetch(event, '/images', {
+    model,
+    prompt: params.prompt,
+    n: 1,
+    aspect_ratio: params.aspectRatio,
+    input_references: params.inputReferences,
+  })
+
+  const entry = json?.data?.[0]
+  if (!entry?.b64_json) {
+    throw createError({ statusCode: 502, statusMessage: 'The AI did not return an image. Please try again.' })
+  }
+
+  const mediaType = entry.media_type || 'image/png'
+  return {
+    data: { dataUrl: `data:${mediaType};base64,${entry.b64_json}`, mediaType },
+    cost: Number(json?.usage?.cost ?? 0),
+  }
+}
+
+/**
  * Generates one new product photo consistent with the given reference photo
  * (same garment, different angle/setting per `prompt`). The underlying model
  * only returns one image per call (n is capped at 1), so the wizard calls
@@ -217,33 +253,38 @@ export async function generateProductImage(event: H3Event, params: {
   logoDataUrl?: string | null
 }): Promise<{ data: GeneratedImage, cost: number }> {
   const inputReferences = [
-    { type: 'image_url', image_url: { url: params.referenceImageDataUrl } },
+    { type: 'image_url' as const, image_url: { url: params.referenceImageDataUrl } },
   ]
   let prompt = params.prompt
   if (params.logoDataUrl) {
     inputReferences.push({ type: 'image_url', image_url: { url: params.logoDataUrl } })
-    prompt += ' A second reference image is also provided: the brand\'s logo. Reproduce that logo exactly as given — same shape, colors and proportions, never redrawn or distorted — as a small, unobtrusive watermark in the bottom-right corner of the photo, adding a subtle semi-transparent backing behind it only if needed for legibility against the photo.'
+    prompt += LOGO_WATERMARK_INSTRUCTION
   }
 
-  const model = await aiConfigService.getImageModel(event)
-  const json = await openRouterFetch(event, '/images', {
-    model,
-    prompt,
-    n: 1,
-    aspect_ratio: params.aspectRatio ?? '3:4',
-    input_references: inputReferences,
-  })
+  return callImagesEndpoint(event, { inputReferences, prompt, aspectRatio: params.aspectRatio ?? '3:4' })
+}
 
-  const entry = json?.data?.[0]
-  if (!entry?.b64_json) {
-    throw createError({ statusCode: 502, statusMessage: 'The AI did not return an image. Please try again.' })
+/**
+ * Generates one social-media-ready photo from 1-3 existing product photos
+ * (chosen by the admin in the Marketing → Social post generator's image
+ * browser) — used so the post's image actually matches the caption's angle
+ * and platform, instead of just reusing the product's first catalog photo
+ * as-is. Same logo-watermark support as `generateProductImage`.
+ */
+export async function generateSocialPostImage(event: H3Event, params: {
+  referenceImageDataUrls: string[]
+  prompt: string
+  aspectRatio?: string
+  logoDataUrl?: string | null
+}): Promise<{ data: GeneratedImage, cost: number }> {
+  const inputReferences = params.referenceImageDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } }))
+  let prompt = params.prompt
+  if (params.logoDataUrl) {
+    inputReferences.push({ type: 'image_url', image_url: { url: params.logoDataUrl } })
+    prompt += LOGO_WATERMARK_INSTRUCTION
   }
 
-  const mediaType = entry.media_type || 'image/png'
-  return {
-    data: { dataUrl: `data:${mediaType};base64,${entry.b64_json}`, mediaType },
-    cost: Number(json?.usage?.cost ?? 0),
-  }
+  return callImagesEndpoint(event, { inputReferences, prompt, aspectRatio: params.aspectRatio ?? '1:1' })
 }
 
 /** Writes French SEO meta title/description for an existing product from its name + description (no image needed). */

@@ -5,7 +5,9 @@ import { storeSettings } from '../database/schema'
 import { settingsService } from './settings.service'
 import { dashboardService } from './dashboard.service'
 import { productsService } from './products.service'
-import { generateSocialPost } from '../utils/openrouter'
+import { generateSocialPost, generateSocialPostImage } from '../utils/openrouter'
+import { getLogoDataUrlForWatermark } from './ai.service'
+import { readImageFromR2AsDataUrl, uploadImageToR2, dataUrlToBytes } from '../utils/media'
 import { fetchMetaAdsInsights, fetchMetaAdsCampaigns } from '../utils/metaMarketingApi'
 import { fetchTiktokAdsInsights, fetchTiktokAdsCampaigns } from '../utils/tiktokMarketingApi'
 import { socialPostsRepository } from '../repositories/socialPosts.repository'
@@ -129,6 +131,30 @@ function getSocialPostPromptType(id: string): SocialPostPromptType {
   return type
 }
 
+// Each platform's native feed format — drives the generated image's shape.
+const SOCIAL_IMAGE_ASPECT_RATIO: Record<'instagram' | 'facebook' | 'tiktok', string> = {
+  instagram: '1:1',
+  facebook: '1:1',
+  tiktok: '9:16',
+}
+
+const SOCIAL_IMAGE_PLATFORM_STYLE: Record<'instagram' | 'facebook' | 'tiktok', string> = {
+  instagram: 'Polished, bright, editorial photo composed for an Instagram feed post.',
+  facebook: 'Clean, warm, inviting photo composed for a Facebook feed post.',
+  tiktok: 'Bold, vibrant, eye-catching vertical photo composed for a TikTok post cover.',
+}
+
+/** Builds the prompt for the AI-generated post image — reuses the same post-angle instruction as the caption so the photo's mood matches what the caption is saying, plus whatever specific direction the admin typed in the "image instructions" field. */
+function buildSocialImagePrompt(params: { platform: 'instagram' | 'facebook' | 'tiktok', promptInstruction: string, imageInstructions?: string | null }): string {
+  return [
+    'Professional, scroll-stopping product photo for a social media post, featuring the exact garment(s) shown in the reference image(s) — keep their color, pattern, fabric and design identical to the references, never a different garment.',
+    SOCIAL_IMAGE_PLATFORM_STYLE[params.platform],
+    `Visual mood to match this post's angle: ${params.promptInstruction}`,
+    params.imageInstructions ? `Additional specific direction from the admin, follow it closely: ${params.imageInstructions}` : null,
+    'No added text or captions baked into the photo.',
+  ].filter(Boolean).join(' ')
+}
+
 // Ad account/advertiser ids live in the same store_settings key-value table
 // as the rest of the store config, but under a `marketing_` prefix that
 // settingsService.getBase() explicitly excludes — these are admin-only
@@ -229,8 +255,8 @@ export const marketingService = {
     return { connected: true as const, insights, campaigns }
   },
 
-  /** Generates a ready-to-post caption + hashtags for one product/platform/locale/prompt-type, and saves it to the post history (see listSavedPosts/deleteSavedPost) so it can be revisited or cleaned up later. */
-  async generateSocialPost(event: H3Event, input: { productId: string, platform: 'instagram' | 'facebook' | 'tiktok', locale: 'fr' | 'en' | 'ar', promptTypeId: string, extraNotes?: string | null }) {
+  /** Generates a ready-to-post caption + hashtags AND a matching AI-generated photo (from up to 3 admin-chosen reference images) for one product/platform/locale/prompt-type, and saves it to the post history (see listSavedPosts/deleteSavedPost) so it can be revisited or cleaned up later. */
+  async generateSocialPost(event: H3Event, input: { productId: string, platform: 'instagram' | 'facebook' | 'tiktok', locale: 'fr' | 'en' | 'ar', promptTypeId: string, extraNotes?: string | null, referenceImageUrls: string[], imageInstructions?: string | null }) {
     const promptType = getSocialPostPromptType(input.promptTypeId)
     const [product, settings] = await Promise.all([
       productsService.get(event, input.productId),
@@ -242,7 +268,7 @@ export const marketingService = {
     const shortDescription = translation?.shortDescription ?? product.shortDescription
     const description = translation?.description ?? product.description
 
-    const { data, cost } = await generateSocialPost(event, {
+    const { data, cost: captionCost } = await generateSocialPost(event, {
       platform: input.platform,
       locale: input.locale,
       storeName: settings.storeName,
@@ -253,8 +279,32 @@ export const marketingService = {
       promptInstruction: promptType.instruction,
       extraNotes: input.extraNotes,
     })
+    let cost = captionCost
 
-    const imageUrl = product.images[0]?.url ?? null
+    const referenceImageDataUrls = (await Promise.all(
+      input.referenceImageUrls.map(url => readImageFromR2AsDataUrl(event, url)),
+    )).filter((url): url is string => !!url)
+    if (!referenceImageDataUrls.length) {
+      throw createError({ statusCode: 422, statusMessage: 'The selected input images could not be read. Please pick different images.' })
+    }
+
+    const logoDataUrl = await getLogoDataUrlForWatermark(event)
+    const imagePrompt = buildSocialImagePrompt({
+      platform: input.platform,
+      promptInstruction: promptType.instruction,
+      imageInstructions: input.imageInstructions,
+    })
+    const { data: image, cost: imageCost } = await generateSocialPostImage(event, {
+      referenceImageDataUrls,
+      prompt: imagePrompt,
+      aspectRatio: SOCIAL_IMAGE_ASPECT_RATIO[input.platform],
+      logoDataUrl,
+    })
+    cost += imageCost
+
+    const { data: imageBytes, contentType } = dataUrlToBytes(image.dataUrl)
+    const { url: imageUrl } = await uploadImageToR2(event, { data: imageBytes, contentType, folder: `marketing/social-posts/${product.id}` })
+
     const id = await socialPostsRepository.create(event, {
       productId: product.id,
       productName: name,
@@ -264,6 +314,7 @@ export const marketingService = {
       promptTypeId: promptType.id,
       promptTypeLabel: promptType.label,
       extraNotes: input.extraNotes ?? null,
+      imageInstructions: input.imageInstructions ?? null,
       caption: data.caption,
       hashtags: data.hashtags,
       cost,

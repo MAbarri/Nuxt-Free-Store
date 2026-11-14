@@ -16,8 +16,8 @@ import type { TranslatableLocale } from '../utils/locale'
 import { aiConfigService } from './aiConfig.service'
 import { settingsService } from './settings.service'
 
-/** Resolves the store logo as a data URL for the "add a logo watermark" feature, or `null` if the toggle is off, no logo is configured, or it can't be read — always degrades silently rather than breaking photo generation. Resolved once per generation batch rather than per photo. */
-async function getLogoDataUrlForWatermark(event: H3Event): Promise<string | null> {
+/** Resolves the store logo as a data URL for the "add a logo watermark" feature, or `null` if the toggle is off, no logo is configured, or it can't be read — always degrades silently rather than breaking photo generation. Resolved once per generation batch rather than per photo. Exported for reuse by marketing.service.ts's social post image generation. */
+export async function getLogoDataUrlForWatermark(event: H3Event): Promise<string | null> {
   const [config, settings] = await Promise.all([aiConfigService.getConfig(event), settingsService.getBase(event)])
   if (!config.logoWatermarkEnabled || !settings.logoUrl) return null
   return readImageFromR2AsDataUrl(event, settings.logoUrl)

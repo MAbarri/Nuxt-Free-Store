@@ -13,6 +13,7 @@ export interface SocialPostInput {
   promptTypeId: string
   promptTypeLabel: string
   extraNotes: string | null
+  imageInstructions: string | null
   caption: string
   hashtags: string[]
   cost: number
@@ -37,6 +38,7 @@ export const socialPostsRepository = {
       promptTypeId: input.promptTypeId,
       promptTypeLabel: input.promptTypeLabel,
       extraNotes: input.extraNotes,
+      imageInstructions: input.imageInstructions,
       caption: input.caption,
       hashtags: input.hashtags,
       cost: input.cost,
