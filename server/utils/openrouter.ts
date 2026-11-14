@@ -438,9 +438,13 @@ const SOCIAL_LOCALE_NAMES: Record<'fr' | 'en' | 'ar', string> = { fr: 'French', 
 export interface SocialPostResult {
   caption: string
   hashtags: string[]
+  /** Short, punchy text actually rendered on the generated photo itself (not just the caption) — see marketing.service.ts's buildSocialImagePrompt. */
+  headline: string
+  /** Optional secondary badge/label text also rendered on the photo (e.g. a discount %, "Cash on Delivery"), or null when not applicable to this post angle. Never invents numbers/claims beyond extraNotes. */
+  overlayText: string | null
 }
 
-/** Writes a ready-to-post social media caption + hashtags for one product, tailored to the given platform's style and written directly in the target locale (not translated afterward). */
+/** Writes a ready-to-post social media caption + hashtags for one product, tailored to the given platform's style and written directly in the target locale (not translated afterward). Also writes the short headline (and optional badge text) that gets baked directly onto the generated photo, so the image is an actual designed graphic rather than a bare product photo. */
 export async function generateSocialPost(event: H3Event, params: {
   platform: 'instagram' | 'facebook' | 'tiktok'
   locale: 'fr' | 'en' | 'ar'
@@ -461,9 +465,11 @@ export async function generateSocialPost(event: H3Event, params: {
     params.extraNotes ? `Specific details to work in naturally (do not invent beyond these): ${params.extraNotes}` : null,
     'Never invent claims not supported by the given product info (material, fit, etc.) — focus on style, versatility, and the price as a value point.',
     'Mention the store name naturally at most once, do not overuse it.',
-    'Respond with ONLY a JSON object, no markdown fences: { "caption": string, "hashtags": string[] }.',
+    'Respond with ONLY a JSON object, no markdown fences: { "caption": string, "hashtags": string[], "headline": string, "overlayText": string|null }.',
     '- "caption": the full post text, including line breaks and emoji where natural for the platform, but NOT the hashtags themselves.',
     `- "hashtags": 8 to 15 relevant hashtags (without the # symbol), written in ${SOCIAL_LOCALE_NAMES[params.locale]} where meaningful, mixing broad fashion tags and specific ones about this product.`,
+    `- "headline": a short, punchy hook (max 6 words) in ${SOCIAL_LOCALE_NAMES[params.locale]}, matching the post angle — this exact text will be rendered directly on the generated photo as the design's headline, so it must work as big bold on-image text, not a full sentence.`,
+    '- "overlayText": an OPTIONAL extra short badge/label (max 4 words) also rendered on the photo, e.g. a discount percentage or "Cash on Delivery" — only include one if it fits this post angle and is supported by the given details, otherwise null. Never invent a specific number/date not present in extraNotes.',
   ].filter(Boolean).join('\n')
   const userText = JSON.stringify({
     storeName: params.storeName,
@@ -474,4 +480,79 @@ export async function generateSocialPost(event: H3Event, params: {
   })
   const { data, cost } = await chatJson<SocialPostResult>(event, { system, userText })
   return { data, cost }
+}
+
+export interface AdCreativeCopyResult {
+  /** Short, punchy text to render directly on the ad creative itself. */
+  headline: string
+  /** Meta/TikTok "primary text" field — the main ad body copy, not rendered on the image. */
+  primaryText: string
+  /** Short supporting line, like Meta's "description" field — may be empty if not useful for this design type. */
+  description: string
+  /** Short call-to-action button label (2-4 words), e.g. "Shop Now" / "Order Now", written in the target locale. */
+  ctaLabel: string
+  /** Optional secondary badge/label text also rendered on the image (e.g. a discount %, "Cash on Delivery", "Bestseller"), or null when not applicable. */
+  badgeText: string | null
+}
+
+const AD_LOCALE_NAMES: Record<'fr' | 'en' | 'ar', string> = { fr: 'French', en: 'English', ar: 'Modern Standard Arabic' }
+
+/** Writes Meta/TikTok-style ad copy (headline, primary text, description, CTA) for one product/design-type, plus the exact headline/badge text to bake directly onto the generated ad image — see marketing.service.ts's buildAdImagePrompt. */
+export async function generateAdCreativeCopy(event: H3Event, params: {
+  platform: 'meta' | 'tiktok'
+  locale: 'fr' | 'en' | 'ar'
+  storeName: string
+  productName: string
+  shortDescription: string | null
+  description: string | null
+  priceLabel: string
+  /** The selected design type's copy direction — see marketing.service.ts's AD_DESIGN_TYPES. */
+  copyInstruction: string
+  extraNotes?: string | null
+}): Promise<{ data: AdCreativeCopyResult, cost: number }> {
+  const system = [
+    `Write ${params.platform === 'meta' ? 'Meta (Facebook/Instagram)' : 'TikTok'} ad copy for this fashion e-commerce product, written directly in ${AD_LOCALE_NAMES[params.locale]} (do not translate from another language, write natively).`,
+    `Ad design type / angle: ${params.copyInstruction}`,
+    params.extraNotes ? `Specific details to work in naturally (do not invent beyond these): ${params.extraNotes}` : null,
+    'Never invent claims not supported by the given product info (material, fit, specific discount amounts, review counts, stock numbers, etc.) — focus on style, versatility, and value.',
+    'Mention the store name naturally at most once, do not overuse it.',
+    'Respond with ONLY a JSON object, no markdown fences: { "headline": string, "primaryText": string, "description": string, "ctaLabel": string, "badgeText": string|null }.',
+    `- "headline": max 6 words in ${AD_LOCALE_NAMES[params.locale]} — this exact text will be rendered directly on the ad image as its bold headline, so it must work as big on-image text, not a sentence.`,
+    '- "primaryText": the main ad body text (like Meta Ads Manager\'s "Primary text" field), 1-3 short sentences, persuasive — this is separate ad-platform copy, NOT rendered on the image.',
+    '- "description": one short supporting line (like Meta\'s "Description" field, max 30 characters) — empty string if not useful for this design type.',
+    `- "ctaLabel": a short call-to-action button label (2-4 words) in ${AD_LOCALE_NAMES[params.locale]}, in the style of "Shop Now" / "Order Now" / "Learn More".`,
+    '- "badgeText": an OPTIONAL extra short badge/label (max 4 words) also rendered on the image, e.g. a discount percentage, "Cash on Delivery", or "Bestseller" — only include one if it fits this design type and is supported by the given details, otherwise null. Never invent a specific number/date not present in extraNotes.',
+  ].filter(Boolean).join('\n')
+  const userText = JSON.stringify({
+    storeName: params.storeName,
+    productName: params.productName,
+    shortDescription: params.shortDescription,
+    description: params.description,
+    price: params.priceLabel,
+  })
+  const { data, cost } = await chatJson<AdCreativeCopyResult>(event, { system, userText })
+  return { data, cost }
+}
+
+/**
+ * Generates one ad-creative image from 1-3 existing product photos (chosen
+ * by the admin in Marketing → Ads content generator's image browser),
+ * exactly like `generateSocialPostImage`, but the prompt (built by
+ * marketing.service.ts's buildAdImagePrompt) asks for a designed ad graphic
+ * with real headline/badge text baked in rather than a plain photo.
+ */
+export async function generateAdCreativeImage(event: H3Event, params: {
+  referenceImageDataUrls: string[]
+  prompt: string
+  aspectRatio?: string
+  logoDataUrl?: string | null
+}): Promise<{ data: GeneratedImage, cost: number }> {
+  const inputReferences = params.referenceImageDataUrls.map(url => ({ type: 'image_url' as const, image_url: { url } }))
+  let prompt = params.prompt
+  if (params.logoDataUrl) {
+    inputReferences.push({ type: 'image_url', image_url: { url: params.logoDataUrl } })
+    prompt += LOGO_WATERMARK_INSTRUCTION
+  }
+
+  return callImagesEndpoint(event, { inputReferences, prompt, aspectRatio: params.aspectRatio ?? '1:1' })
 }

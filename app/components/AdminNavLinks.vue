@@ -24,6 +24,7 @@ const groups: NavGroup[] = [
   { label: 'Marketing', items: [
     { to: '/admin/marketing', label: 'Marketing dashboard', icon: 'i-lucide-megaphone' },
     { to: '/admin/marketing/social-posts', label: 'Social post generator', icon: 'i-lucide-sparkles' },
+    { to: '/admin/marketing/ad-creatives', label: 'Ads content generator', icon: 'i-lucide-image-plus' },
     { to: '/admin/marketing/meta-ads', label: 'Meta ads manager', icon: 'i-lucide-facebook' },
     { to: '/admin/marketing/tiktok-ads', label: 'TikTok ads manager', icon: 'i-lucide-music-2' },
   ] },

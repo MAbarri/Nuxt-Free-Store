@@ -121,6 +121,16 @@ onMounted(load)
             Open social post generator
           </UButton>
         </UCard>
+
+        <UCard class="lg:col-span-2">
+          <template #header><p class="font-medium">Ads content generator</p></template>
+          <p class="text-sm text-stone-500">
+            Generate a ready-to-use Meta or TikTok ad: headline, primary text, description, call-to-action, and a matching designed ad creative photo with the headline baked right into the image — pick a design type (promotional, social proof, seasonal, etc.) for any product.
+          </p>
+          <UButton class="mt-4" icon="i-lucide-image-plus" to="/admin/marketing/ad-creatives">
+            Open ads content generator
+          </UButton>
+        </UCard>
       </div>
     </template>
   </div>

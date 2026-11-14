@@ -1,0 +1,591 @@
+<script setup lang="ts">
+definePageMeta({ layout: 'admin', middleware: 'admin' })
+
+interface ProductRow {
+  id: string
+  name: string
+  sku: string
+  basePrice: number
+}
+
+interface ProductImageRow {
+  id: string
+  url: string
+}
+
+interface Category {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+interface CategoryNode extends Category {
+  children: CategoryNode[]
+}
+
+interface DesignType {
+  id: string
+  label: string
+  category: string
+  categoryLabel: string
+}
+
+interface GeneratedAd {
+  id: string
+  headline: string
+  primaryText: string
+  description: string | null
+  ctaLabel: string
+  badgeText: string | null
+  imageUrl: string | null
+  productName: string
+  cost: number
+}
+
+interface SavedAd {
+  id: string
+  productId: string | null
+  productName: string
+  imageUrl: string | null
+  platform: string
+  locale: string
+  designTypeId: string
+  designTypeLabel: string
+  extraNotes: string | null
+  imageInstructions: string | null
+  headline: string
+  primaryText: string
+  description: string | null
+  ctaLabel: string
+  badgeText: string | null
+  cost: number
+  createdAt: string
+}
+
+const PLATFORMS = [
+  { value: 'meta', label: 'Meta (Facebook & Instagram)', icon: 'i-lucide-facebook' },
+  { value: 'tiktok', label: 'TikTok', icon: 'i-lucide-music-2' },
+] as const
+const LOCALES = [
+  { value: 'fr', label: 'French' },
+  { value: 'en', label: 'English' },
+  { value: 'ar', label: 'Arabic' },
+] as const
+
+const ALL_PRODUCTS_KEY = '__all__'
+
+const toast = useToast()
+
+// --- Category → products → images browser ---------------------------------
+const categories = ref<Category[]>([])
+const categoryTree = computed<CategoryNode[]>(() => {
+  const byId = new Map<string, CategoryNode>(categories.value.map(c => [c.id, { ...c, children: [] }]))
+  const roots: CategoryNode[] = []
+  for (const node of byId.values()) {
+    if (node.parentId && byId.has(node.parentId)) byId.get(node.parentId)!.children.push(node)
+    else roots.push(node)
+  }
+  return roots
+})
+
+const expandedCategoryIds = ref(new Set<string>())
+const categoryProducts = reactive<Record<string, ProductRow[]>>({})
+const categoryProductsLoading = reactive<Record<string, boolean>>({})
+const allProductsExpanded = ref(false)
+
+async function loadCategories() {
+  try {
+    categories.value = await apiFetch<Category[]>('/api/admin/categories')
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load categories', description: apiErrorMessage(e), color: 'error' })
+  }
+}
+
+async function loadProductsFor(key: string, categoryId: string | null) {
+  if (categoryProducts[key]) return
+  categoryProductsLoading[key] = true
+  try {
+    const query: Record<string, unknown> = { pageSize: 100 }
+    if (categoryId) query.categoryId = categoryId
+    const result = await apiFetch<{ rows: ProductRow[], total: number }>('/api/admin/products', { query })
+    categoryProducts[key] = result.rows
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load products', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    categoryProductsLoading[key] = false
+  }
+}
+
+function toggleCategory(id: string) {
+  if (expandedCategoryIds.value.has(id)) {
+    expandedCategoryIds.value.delete(id)
+  }
+  else {
+    expandedCategoryIds.value.add(id)
+    loadProductsFor(id, id)
+  }
+  // Trigger reactivity — Set mutations aren't tracked in-place by Vue.
+  expandedCategoryIds.value = new Set(expandedCategoryIds.value)
+}
+
+function toggleAllProducts() {
+  allProductsExpanded.value = !allProductsExpanded.value
+  if (allProductsExpanded.value) loadProductsFor(ALL_PRODUCTS_KEY, null)
+}
+
+const selectedProduct = ref<ProductRow | null>(null)
+const productImageCache = reactive<Record<string, ProductImageRow[]>>({})
+const loadingProductImages = ref(false)
+const selectedImages = ref<ProductImageRow[]>([])
+
+async function selectProductFromTree(product: ProductRow) {
+  selectedProduct.value = product
+  selectedImages.value = []
+  if (!productImageCache[product.id]) {
+    loadingProductImages.value = true
+    try {
+      const full = await apiFetch<{ images: ProductImageRow[] }>(`/api/admin/products/${product.id}`)
+      productImageCache[product.id] = full.images
+    }
+    catch (e) {
+      toast.add({ title: 'Failed to load product photos', description: apiErrorMessage(e), color: 'error' })
+      productImageCache[product.id] = []
+    }
+    finally {
+      loadingProductImages.value = false
+    }
+  }
+}
+
+const availableImages = computed(() => selectedProduct.value ? (productImageCache[selectedProduct.value.id] ?? []) : [])
+
+function isImageSelected(image: ProductImageRow) {
+  return selectedImages.value.some(i => i.id === image.id)
+}
+
+function toggleImage(image: ProductImageRow) {
+  if (isImageSelected(image)) {
+    selectedImages.value = selectedImages.value.filter(i => i.id !== image.id)
+  }
+  else if (selectedImages.value.length < 3) {
+    selectedImages.value = [...selectedImages.value, image]
+  }
+}
+
+function clearSelectedProduct() {
+  selectedProduct.value = null
+  selectedImages.value = []
+}
+
+provide('adCreativeTree', {
+  isCategoryExpanded: (id: string) => expandedCategoryIds.value.has(id),
+  isCategoryLoading: (id: string) => !!categoryProductsLoading[id],
+  productsForCategory: (id: string) => categoryProducts[id] ?? [],
+  toggleCategory,
+  isProductSelected: (id: string) => selectedProduct.value?.id === id,
+  selectProduct: selectProductFromTree,
+})
+
+// --- Design type / platform / language --------------------------------------
+const platform = ref<typeof PLATFORMS[number]['value']>('meta')
+const locale = ref<typeof LOCALES[number]['value']>('fr')
+
+const designTypes = ref<DesignType[]>([])
+const designTypeId = ref<string | null>(null)
+const extraNotes = ref('')
+const imageInstructions = ref('')
+
+// USelectMenu renders an array-of-arrays as separate labeled groups — one
+// sub-array per design category, each starting with a non-selectable "label"
+// row for the category name (same pattern as the social post generator).
+const designTypeItems = computed(() => {
+  const groups = new Map<string, { label: string, items: Array<{ type: 'label' | 'item', label: string, value?: string }> }>()
+  for (const type of designTypes.value) {
+    if (!groups.has(type.category)) {
+      groups.set(type.category, { label: type.categoryLabel, items: [{ type: 'label', label: type.categoryLabel }] })
+    }
+    groups.get(type.category)!.items.push({ type: 'item', label: type.label, value: type.id })
+  }
+  return Array.from(groups.values()).map(g => g.items)
+})
+
+async function loadDesignTypes() {
+  try {
+    designTypes.value = await apiFetch<DesignType[]>('/api/admin/marketing/ad-creatives/design-types')
+    designTypeId.value = designTypes.value[0]?.id ?? null
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load design types', description: apiErrorMessage(e), color: 'error' })
+  }
+}
+
+const generating = ref(false)
+const ad = ref<GeneratedAd | null>(null)
+
+const savedAds = ref<SavedAd[]>([])
+const loadingSaved = ref(true)
+const deletingId = ref<string | null>(null)
+
+async function loadSavedAds() {
+  loadingSaved.value = true
+  try {
+    savedAds.value = await apiFetch<SavedAd[]>('/api/admin/marketing/ad-creatives')
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load saved ad creatives', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    loadingSaved.value = false
+  }
+}
+
+async function deleteSavedAd(id: string) {
+  if (!confirm('Delete this saved ad creative? This cannot be undone.')) return
+  deletingId.value = id
+  try {
+    await apiFetch(`/api/admin/marketing/ad-creatives/${id}`, { method: 'DELETE' })
+    savedAds.value = savedAds.value.filter(a => a.id !== id)
+    toast.add({ title: 'Ad creative deleted', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Delete failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    deletingId.value = null
+  }
+}
+
+function platformIcon(platform: string) {
+  return PLATFORMS.find(p => p.value === platform)?.icon ?? 'i-lucide-megaphone'
+}
+
+function localeLabel(locale: string) {
+  return LOCALES.find(l => l.value === locale)?.label ?? locale
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+const canGenerate = computed(() => !!selectedProduct.value && !!designTypeId.value && selectedImages.value.length > 0)
+
+async function generate() {
+  if (!canGenerate.value) return
+  generating.value = true
+  try {
+    ad.value = await apiFetch<GeneratedAd>('/api/admin/marketing/ad-creatives/generate', {
+      method: 'POST',
+      body: {
+        productId: selectedProduct.value!.id,
+        platform: platform.value,
+        locale: locale.value,
+        designTypeId: designTypeId.value,
+        extraNotes: extraNotes.value.trim() || undefined,
+        referenceImageUrls: selectedImages.value.map(i => i.url),
+        imageInstructions: imageInstructions.value.trim() || undefined,
+      },
+    })
+    toast.add({ title: 'Ad creative generated and saved', description: `AI cost: $${ad.value.cost.toFixed(4)} — review before using it in an ad`, color: 'success' })
+    loadSavedAds()
+  }
+  catch (e) {
+    toast.add({ title: 'Generation failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    generating.value = false
+  }
+}
+
+async function copyText(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.add({ title: `${label} copied`, color: 'success' })
+  }
+  catch {
+    toast.add({ title: 'Could not copy to clipboard', color: 'error' })
+  }
+}
+
+function imageFilename(url: string, productName: string) {
+  const ext = url.split('.').pop()?.split('?')[0] || 'png'
+  const slug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'ad-creative'
+  return `${slug}-${Date.now()}.${ext}`
+}
+
+async function downloadImage(url: string, productName: string) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Download failed')
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = imageFilename(url, productName)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(blobUrl)
+  }
+  catch (e) {
+    toast.add({ title: 'Download failed', description: apiErrorMessage(e), color: 'error' })
+  }
+}
+
+onMounted(loadDesignTypes)
+onMounted(loadSavedAds)
+onMounted(loadCategories)
+</script>
+
+<template>
+  <div>
+    <h1 class="font-display text-2xl">
+      Ads content generator
+    </h1>
+    <p class="text-sm text-stone-500">
+      Browse to a product, pick up to 3 of its photos, an ad design type, a platform and a language — AI writes ready-to-use ad copy (headline, primary text, description, call-to-action) AND generates a matching designed ad creative photo with the headline baked right into the image, ready to paste into Meta or TikTok Ads Manager. Nothing is auto-published. Every generated ad is saved below so you can come back to it later.
+    </p>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-2">
+      <UCard>
+        <template #header><p class="font-medium">1. Product, photos &amp; design type</p></template>
+
+        <p class="text-sm font-medium">Browse products</p>
+        <div class="mt-2 max-h-64 overflow-y-auto rounded-md border border-stone-200">
+          <button
+            type="button"
+            class="flex w-full items-center gap-1.5 py-1.5 pr-2 pl-2 text-sm hover:bg-stone-50"
+            @click="toggleAllProducts"
+          >
+            <UIcon :name="allProductsExpanded ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-4 shrink-0 text-stone-400" />
+            <UIcon name="i-lucide-layout-grid" class="size-4 shrink-0 text-stone-400" />
+            <span class="font-medium">All products</span>
+          </button>
+          <div v-if="allProductsExpanded">
+            <div v-if="categoryProductsLoading[ALL_PRODUCTS_KEY]" class="py-1 pl-8 text-xs text-stone-400">
+              Loading…
+            </div>
+            <button
+              v-for="product in categoryProducts[ALL_PRODUCTS_KEY] ?? []" :key="product.id"
+              type="button"
+              class="flex w-full items-center justify-between gap-2 py-1.5 pr-2 pl-8 text-sm hover:bg-stone-50"
+              :class="selectedProduct?.id === product.id ? 'bg-primary-50 text-primary-700' : ''"
+              @click="selectProductFromTree(product)"
+            >
+              <span class="flex min-w-0 items-center gap-1.5">
+                <UIcon name="i-lucide-shirt" class="size-4 shrink-0 text-stone-400" />
+                <span class="truncate">{{ product.name }}</span>
+              </span>
+              <span class="shrink-0 text-xs text-stone-400">{{ product.sku }}</span>
+            </button>
+          </div>
+
+          <AdminCategoryTreeNode
+            v-for="node in categoryTree" :key="node.id"
+            :node="node" inject-key="adCreativeTree"
+          />
+        </div>
+
+        <div v-if="selectedProduct" class="mt-4 flex items-center justify-between rounded-md border border-stone-200 bg-stone-50 px-3 py-2">
+          <div>
+            <p class="text-sm font-medium">{{ selectedProduct.name }}</p>
+            <p class="text-xs text-stone-500">{{ selectedProduct.sku }} · {{ formatPrice(selectedProduct.basePrice) }}</p>
+          </div>
+          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" @click="clearSelectedProduct" />
+        </div>
+
+        <UFormField
+          v-if="selectedProduct"
+          label="Input photos" description="Pick up to 3 — fed to the AI as the exact garment(s) to feature in the generated ad."
+          class="mt-4"
+        >
+          <div v-if="loadingProductImages" class="text-sm text-stone-400">Loading photos…</div>
+          <p v-else-if="!availableImages.length" class="text-sm text-stone-400">This product has no photos yet.</p>
+          <div v-else class="mt-1 grid grid-cols-4 gap-2 sm:grid-cols-5">
+            <button
+              v-for="image in availableImages" :key="image.id"
+              type="button"
+              class="product-media relative aspect-square rounded-md ring-2 disabled:opacity-40"
+              :class="isImageSelected(image) ? 'ring-primary-500' : 'ring-transparent'"
+              :disabled="!isImageSelected(image) && selectedImages.length >= 3"
+              @click="toggleImage(image)"
+            >
+              <img :src="image.url" alt="" class="h-full w-full rounded-md object-cover">
+              <span
+                v-if="isImageSelected(image)"
+                class="bg-primary-500 absolute top-1 right-1 flex size-5 items-center justify-center rounded-full text-white"
+              >
+                <UIcon name="i-lucide-check" class="size-3" />
+              </span>
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">{{ selectedImages.length }}/3 selected</p>
+        </UFormField>
+
+        <UFormField label="Ad design type" description="Categorized, searchable — type to filter." class="mt-4">
+          <USelectMenu
+            v-model="designTypeId" value-key="value" label-key="label"
+            :items="designTypeItems" placeholder="Choose a design type…" class="w-full"
+          />
+        </UFormField>
+
+        <UFormField label="Extra details (optional)" description="A discount %, an occasion name, a quantity-discount offer, etc. — worked into the copy as-is, never invented by the AI." class="mt-4">
+          <UInput v-model="extraNotes" placeholder="e.g. 20% off until Sunday" class="w-full" />
+        </UFormField>
+
+        <UFormField label="Image instructions (optional)" description="Direct the generated ad design specifically — a setting, a pose, a background, etc." class="mt-4">
+          <UTextarea v-model="imageInstructions" :rows="2" placeholder="e.g. place it on a mannequin against a plain beige background" class="w-full" />
+        </UFormField>
+
+        <template #footer>
+          <div class="grid gap-4 md:grid-cols-2">
+            <UFormField label="Platform">
+              <div class="flex gap-2">
+                <UButton
+                  v-for="p in PLATFORMS" :key="p.value"
+                  size="sm" :icon="p.icon"
+                  :variant="platform === p.value ? 'solid' : 'soft'"
+                  @click="platform = p.value"
+                >
+                  {{ p.label }}
+                </UButton>
+              </div>
+            </UFormField>
+            <UFormField label="Language">
+              <div class="flex gap-2">
+                <UButton
+                  v-for="l in LOCALES" :key="l.value"
+                  size="sm"
+                  :variant="locale === l.value ? 'solid' : 'soft'"
+                  @click="locale = l.value"
+                >
+                  {{ l.label }}
+                </UButton>
+              </div>
+            </UFormField>
+          </div>
+          <UButton class="mt-4" block :loading="generating" :disabled="!canGenerate" icon="i-lucide-sparkles" @click="generate">
+            Generate ad creative
+          </UButton>
+        </template>
+      </UCard>
+
+      <UCard>
+        <template #header><p class="font-medium">2. Result</p></template>
+
+        <p v-if="!ad" class="text-sm text-stone-400">
+          Pick a product, its input photos, and generate an ad creative to see it here.
+        </p>
+
+        <div v-else class="space-y-4">
+          <div v-if="ad.imageUrl" class="w-40 max-w-full">
+            <div class="product-media aspect-square rounded-md">
+              <img :src="ad.imageUrl" :alt="ad.productName" class="h-full w-full object-cover">
+            </div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <UButton size="xs" variant="soft" icon="i-lucide-external-link" :to="ad.imageUrl" target="_blank">
+                Open image
+              </UButton>
+              <UButton size="xs" variant="soft" icon="i-lucide-download" @click="downloadImage(ad.imageUrl, ad.productName)">
+                Download image
+              </UButton>
+            </div>
+          </div>
+
+          <p class="text-xs text-stone-400">
+            On-image text: <span class="font-medium text-stone-600">{{ ad.headline }}</span>
+            <span v-if="ad.badgeText"> · {{ ad.badgeText }}</span>
+          </p>
+
+          <UFormField label="Headline">
+            <UInput v-model="ad.headline" class="w-full" />
+          </UFormField>
+          <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(ad.headline, 'Headline')">
+            Copy headline
+          </UButton>
+
+          <UFormField label="Primary text">
+            <UTextarea v-model="ad.primaryText" :rows="4" class="w-full" />
+          </UFormField>
+          <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(ad.primaryText, 'Primary text')">
+            Copy primary text
+          </UButton>
+
+          <UFormField v-if="ad.description" label="Description">
+            <UInput v-model="ad.description" class="w-full" />
+          </UFormField>
+          <UButton v-if="ad.description" size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(ad.description!, 'Description')">
+            Copy description
+          </UButton>
+
+          <UFormField label="Call to action">
+            <UInput v-model="ad.ctaLabel" class="w-full" />
+          </UFormField>
+        </div>
+      </UCard>
+    </div>
+
+    <UCard class="mt-6">
+      <template #header><p class="font-medium">Saved ad creatives</p></template>
+
+      <div v-if="loadingSaved" class="text-sm text-stone-400">Loading…</div>
+      <p v-else-if="!savedAds.length" class="text-sm text-stone-400">
+        Generated ad creatives are saved here automatically — nothing yet.
+      </p>
+
+      <div v-else class="divide-y divide-stone-100">
+        <div v-for="saved in savedAds" :key="saved.id" class="flex gap-3 py-4 first:pt-0 last:pb-0">
+          <div v-if="saved.imageUrl" class="w-16 shrink-0 max-w-full">
+            <div class="product-media aspect-square rounded-md">
+              <img :src="saved.imageUrl" :alt="saved.productName" class="h-full w-full object-cover">
+            </div>
+          </div>
+
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <UIcon :name="platformIcon(saved.platform)" class="size-4 text-stone-400" />
+              <p class="truncate text-sm font-medium">{{ saved.productName }}</p>
+              <UBadge size="xs" variant="soft" color="neutral">{{ saved.designTypeLabel }}</UBadge>
+              <UBadge size="xs" variant="soft" color="neutral">{{ localeLabel(saved.locale) }}</UBadge>
+            </div>
+            <p class="mt-1 text-sm font-medium text-stone-700">{{ saved.headline }}<span v-if="saved.badgeText"> · {{ saved.badgeText }}</span></p>
+            <p class="mt-1 whitespace-pre-line text-sm text-stone-600 line-clamp-3">{{ saved.primaryText }}</p>
+            <p v-if="saved.description" class="mt-1 text-xs text-stone-500">{{ saved.description }}</p>
+            <p class="mt-1 text-xs text-stone-400">CTA: {{ saved.ctaLabel }}</p>
+            <p v-if="saved.extraNotes" class="mt-1 text-xs text-stone-400">
+              Extra details: {{ saved.extraNotes }}
+            </p>
+            <p v-if="saved.imageInstructions" class="mt-1 text-xs text-stone-400">
+              Image instructions: {{ saved.imageInstructions }}
+            </p>
+            <p class="mt-1 text-xs text-stone-400">{{ formatDate(saved.createdAt) }} · AI cost ${{ saved.cost.toFixed(4) }}</p>
+
+            <div class="mt-2 flex flex-wrap gap-2">
+              <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(saved.headline, 'Headline')">
+                Copy headline
+              </UButton>
+              <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(saved.primaryText, 'Primary text')">
+                Copy primary text
+              </UButton>
+              <UButton v-if="saved.imageUrl" size="xs" variant="soft" icon="i-lucide-external-link" :to="saved.imageUrl" target="_blank">
+                Open image
+              </UButton>
+              <UButton v-if="saved.imageUrl" size="xs" variant="soft" icon="i-lucide-download" @click="downloadImage(saved.imageUrl, saved.productName)">
+                Download image
+              </UButton>
+              <UButton
+                size="xs" variant="soft" color="error" icon="i-lucide-trash-2"
+                :loading="deletingId === saved.id"
+                @click="deleteSavedAd(saved.id)"
+              >
+                Delete
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </UCard>
+  </div>
+</template>

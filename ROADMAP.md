@@ -29,12 +29,29 @@ already arriving, and generating more of the ad/content work by herself.
 | C. Homepage richness (bestsellers + trust badges) | ✅ Done |
 | D. Upsell / cross-sell (rule-based) | ✅ Done |
 | E. Reviews & ratings (admin-entered) | ❌ Not started |
-| F. AI ad-copy generator (Meta/TikTok) | ❌ Not started |
+| F. AI ad-copy generator (Meta/TikTok) | ✅ Done (expanded scope — see note below) |
 | G. Video ad generator | ❌ Not started |
 
 Suggested order is the order listed (A and B are foundational/cheap; C is
 nearly free given existing infra; D/E are the core conversion work; F/G are
-new AI surface area, G being the biggest lift — do it last).
+new AI surface area, G being the biggest lift — do it last). F was actually
+built out of order, directly requested by the user before E.
+
+**Phase F note**: shipped as "Ads content generator"
+(`/admin/marketing/ad-creatives`), broader than this file's original plan —
+the user explicitly wanted actual designed ad creative *images* (headline/
+badge text baked into the photo via AI image generation), not just Meta/
+TikTok ad-copy text fields. Table is `ad_creatives` (not `ad_copy_sets`),
+and it reuses the social post generator's product/image-browser UI exactly
+as planned, plus a new `AD_DESIGN_TYPES` catalog
+(`server/services/marketing.service.ts`) mirroring `SOCIAL_POST_PROMPT_TYPES`
+but with a separate `designInstruction` per type driving the image prompt.
+The same fix (baking real on-image headline/badge text into the generated
+photo, where this file's plan was silent on it) was also retrofitted onto
+the existing social post generator, which previously explicitly told the
+image model "no added text" — that line was the root cause of the social
+posts' AI photos looking like plain product shots instead of designed
+content.
 
 ---
 

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 /**
- * One recursive row of the category→products tree used by the Marketing →
- * Social post generator's image browser (see social-posts.vue). All shared
- * state/handlers come from the `socialPostTree` provide/inject context set
- * up by the page, so this component only needs the node itself — it can
- * then render itself again for child categories without prop-drilling.
+ * One recursive row of a category→products tree used by admin AI-content
+ * generator pages' image browser (Marketing → Social post generator and
+ * Ads content generator). All shared state/handlers come from a
+ * provide/inject context set up by the page (key given via `injectKey`,
+ * defaulting to the social post generator's for backward compatibility) —
+ * this component only needs the node itself, so it can render itself again
+ * for child categories without prop-drilling.
  */
 interface CategoryNode {
   id: string
@@ -28,10 +30,10 @@ interface TreeContext {
   selectProduct: (product: ProductRow) => void
 }
 
-const props = defineProps<{ node: CategoryNode, depth?: number }>()
+const props = defineProps<{ node: CategoryNode, depth?: number, injectKey?: string }>()
 const depth = computed(() => props.depth ?? 0)
 
-const tree = inject<TreeContext>('socialPostTree')!
+const tree = inject<TreeContext>(props.injectKey ?? 'socialPostTree')!
 </script>
 
 <template>
@@ -72,7 +74,7 @@ const tree = inject<TreeContext>('socialPostTree')!
 
       <AdminCategoryTreeNode
         v-for="child in node.children" :key="child.id"
-        :node="child" :depth="depth + 1"
+        :node="child" :depth="depth + 1" :inject-key="injectKey"
       />
     </div>
   </div>

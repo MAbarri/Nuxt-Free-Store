@@ -34,6 +34,8 @@ interface GeneratedPost {
   id: string
   caption: string
   hashtags: string[]
+  headline: string
+  overlayText: string | null
   imageUrl: string | null
   productName: string
   cost: number
@@ -52,6 +54,8 @@ interface SavedPost {
   imageInstructions: string | null
   caption: string
   hashtags: string[]
+  headline: string | null
+  overlayText: string | null
   cost: number
   createdAt: string
 }
@@ -491,6 +495,11 @@ onMounted(loadCategories)
             </div>
           </div>
 
+          <p class="text-xs text-stone-400">
+            On-image text: <span class="font-medium text-stone-600">{{ post.headline }}</span>
+            <span v-if="post.overlayText"> · {{ post.overlayText }}</span>
+          </p>
+
           <UFormField label="Caption">
             <UTextarea v-model="post.caption" :rows="8" class="w-full" />
           </UFormField>
@@ -538,6 +547,9 @@ onMounted(loadCategories)
               <UBadge size="xs" variant="soft" color="neutral">{{ localeLabel(saved.locale) }}</UBadge>
             </div>
             <p class="mt-1 whitespace-pre-line text-sm text-stone-600 line-clamp-3">{{ saved.caption }}</p>
+            <p v-if="saved.headline" class="mt-1 text-xs text-stone-400">
+              On-image text: {{ saved.headline }}<span v-if="saved.overlayText"> · {{ saved.overlayText }}</span>
+            </p>
             <p v-if="saved.extraNotes" class="mt-1 text-xs text-stone-400">
               Extra details: {{ saved.extraNotes }}
             </p>

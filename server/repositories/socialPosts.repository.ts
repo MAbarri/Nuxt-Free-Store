@@ -16,6 +16,8 @@ export interface SocialPostInput {
   imageInstructions: string | null
   caption: string
   hashtags: string[]
+  headline: string | null
+  overlayText: string | null
   cost: number
 }
 
@@ -41,6 +43,8 @@ export const socialPostsRepository = {
       imageInstructions: input.imageInstructions,
       caption: input.caption,
       hashtags: input.hashtags,
+      headline: input.headline,
+      overlayText: input.overlayText,
       cost: input.cost,
       createdAt: new Date(),
     })
