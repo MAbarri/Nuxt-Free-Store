@@ -139,15 +139,15 @@ const SOCIAL_IMAGE_ASPECT_RATIO: Record<'instagram' | 'facebook' | 'tiktok', str
 }
 
 const SOCIAL_IMAGE_PLATFORM_STYLE: Record<'instagram' | 'facebook' | 'tiktok', string> = {
-  instagram: 'Polished, bright, editorial photo composed for an Instagram feed post.',
-  facebook: 'Clean, warm, inviting photo composed for a Facebook feed post.',
-  tiktok: 'Bold, vibrant, eye-catching vertical photo composed for a TikTok post cover.',
+  instagram: 'Styled like a top fashion brand\'s Instagram feed post, art-directed by a professional social media designer: a considered, color-coordinated backdrop or props (not a flat plain studio wall), soft flattering natural or golden-hour light, a well-balanced, slightly asymmetric composition with intentional negative space, a cohesive premium color grade — the kind of image that looks curated, not a generic product listing photo.',
+  facebook: 'Clean, warm, inviting photo art-directed for a Facebook feed post: a considered, color-coordinated backdrop or setting, soft natural light, balanced composition — polished and premium rather than a plain catalog photo.',
+  tiktok: 'Bold, vibrant, trend-forward vertical photo art-directed for a TikTok post cover: an eye-catching, color-coordinated setting with good depth and energy, strong natural or golden-hour light, dynamic but balanced composition — polished and premium rather than a plain catalog photo.',
 }
 
-/** Builds the prompt for the AI-generated post image — reuses the same post-angle instruction as the caption so the photo's mood matches what the caption is saying, plus whatever specific direction the admin typed in the "image instructions" field. */
+/** Builds the prompt for the AI-generated post image — reuses the same post-angle instruction as the caption so the photo's mood matches what the caption is saying, plus whatever specific direction the admin typed in the "image instructions" field. Deliberately pushes for an art-directed, "designer made" social-content look rather than a plain product-catalog photo (see SOCIAL_IMAGE_PLATFORM_STYLE). */
 function buildSocialImagePrompt(params: { platform: 'instagram' | 'facebook' | 'tiktok', promptInstruction: string, imageInstructions?: string | null }): string {
   return [
-    'Professional, scroll-stopping product photo for a social media post, featuring the exact garment(s) shown in the reference image(s) — keep their color, pattern, fabric and design identical to the references, never a different garment.',
+    'Scroll-stopping, designer-made social media content photo, featuring the exact garment(s) shown in the reference image(s) — keep their color, pattern, fabric and design identical to the references, never a different garment.',
     SOCIAL_IMAGE_PLATFORM_STYLE[params.platform],
     `Visual mood to match this post's angle: ${params.promptInstruction}`,
     params.imageInstructions ? `Additional specific direction from the admin, follow it closely: ${params.imageInstructions}` : null,

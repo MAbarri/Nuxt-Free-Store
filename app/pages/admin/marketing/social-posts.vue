@@ -304,6 +304,31 @@ async function copyText(text: string, label: string) {
   }
 }
 
+function imageFilename(url: string, productName: string) {
+  const ext = url.split('.').pop()?.split('?')[0] || 'png'
+  const slug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'social-post'
+  return `${slug}-${Date.now()}.${ext}`
+}
+
+async function downloadImage(url: string, productName: string) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Download failed')
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = imageFilename(url, productName)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(blobUrl)
+  }
+  catch (e) {
+    toast.add({ title: 'Download failed', description: apiErrorMessage(e), color: 'error' })
+  }
+}
+
 const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#${h}`).join(' ') : '')
 
 onMounted(loadPromptTypes)
@@ -452,9 +477,17 @@ onMounted(loadCategories)
         </p>
 
         <div v-else class="space-y-4">
-          <div v-if="post.imageUrl" class="w-32 max-w-full">
+          <div v-if="post.imageUrl" class="w-40 max-w-full">
             <div class="product-media aspect-square rounded-md">
               <img :src="post.imageUrl" :alt="post.productName" class="h-full w-full object-cover">
+            </div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <UButton size="xs" variant="soft" icon="i-lucide-external-link" :to="post.imageUrl" target="_blank">
+                Open image
+              </UButton>
+              <UButton size="xs" variant="soft" icon="i-lucide-download" @click="downloadImage(post.imageUrl, post.productName)">
+                Download image
+              </UButton>
             </div>
           </div>
 
@@ -519,6 +552,12 @@ onMounted(loadCategories)
               </UButton>
               <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(saved.hashtags.map(h => `#${h}`).join(' '), 'Hashtags')">
                 Copy hashtags
+              </UButton>
+              <UButton v-if="saved.imageUrl" size="xs" variant="soft" icon="i-lucide-external-link" :to="saved.imageUrl" target="_blank">
+                Open image
+              </UButton>
+              <UButton v-if="saved.imageUrl" size="xs" variant="soft" icon="i-lucide-download" @click="downloadImage(saved.imageUrl, saved.productName)">
+                Download image
               </UButton>
               <UButton
                 size="xs" variant="soft" color="error" icon="i-lucide-trash-2"
