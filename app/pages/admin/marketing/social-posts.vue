@@ -16,11 +16,28 @@ interface PromptType {
 }
 
 interface GeneratedPost {
+  id: string
   caption: string
   hashtags: string[]
   imageUrl: string | null
   productName: string
   cost: number
+}
+
+interface SavedPost {
+  id: string
+  productId: string | null
+  productName: string
+  imageUrl: string | null
+  platform: string
+  locale: string
+  promptTypeId: string
+  promptTypeLabel: string
+  extraNotes: string | null
+  caption: string
+  hashtags: string[]
+  cost: number
+  createdAt: string
 }
 
 const PLATFORMS = [
@@ -103,6 +120,51 @@ function selectProduct(product: ProductRow) {
 const generating = ref(false)
 const post = ref<GeneratedPost | null>(null)
 
+const savedPosts = ref<SavedPost[]>([])
+const loadingSaved = ref(true)
+const deletingId = ref<string | null>(null)
+
+async function loadSavedPosts() {
+  loadingSaved.value = true
+  try {
+    savedPosts.value = await apiFetch<SavedPost[]>('/api/admin/marketing/social-posts')
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to load saved posts', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    loadingSaved.value = false
+  }
+}
+
+async function deleteSavedPost(id: string) {
+  if (!confirm('Delete this saved post? This cannot be undone.')) return
+  deletingId.value = id
+  try {
+    await apiFetch(`/api/admin/marketing/social-posts/${id}`, { method: 'DELETE' })
+    savedPosts.value = savedPosts.value.filter(p => p.id !== id)
+    toast.add({ title: 'Post deleted', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Delete failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    deletingId.value = null
+  }
+}
+
+function platformIcon(platform: string) {
+  return PLATFORMS.find(p => p.value === platform)?.icon ?? 'i-lucide-share-2'
+}
+
+function localeLabel(locale: string) {
+  return LOCALES.find(l => l.value === locale)?.label ?? locale
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
 async function generate() {
   if (!selectedProduct.value || !promptTypeId.value) return
   generating.value = true
@@ -117,7 +179,8 @@ async function generate() {
         extraNotes: extraNotes.value.trim() || undefined,
       },
     })
-    toast.add({ title: 'Post generated', description: `AI cost: $${post.value.cost.toFixed(4)} — review before posting`, color: 'success' })
+    toast.add({ title: 'Post generated and saved', description: `AI cost: $${post.value.cost.toFixed(4)} — review before posting`, color: 'success' })
+    loadSavedPosts()
   }
   catch (e) {
     toast.add({ title: 'Generation failed', description: apiErrorMessage(e), color: 'error' })
@@ -140,6 +203,7 @@ async function copyText(text: string, label: string) {
 const hashtagsText = computed(() => post.value ? post.value.hashtags.map(h => `#${h}`).join(' ') : '')
 
 onMounted(loadPromptTypes)
+onMounted(loadSavedPosts)
 </script>
 
 <template>
@@ -148,7 +212,7 @@ onMounted(loadPromptTypes)
       Social media post generator
     </h1>
     <p class="text-sm text-stone-500">
-      Pick a product, a post angle, a platform and a language — AI writes a ready-to-post caption and hashtags you can copy straight into Instagram, Facebook, or TikTok. Nothing is auto-published.
+      Pick a product, a post angle, a platform and a language — AI writes a ready-to-post caption and hashtags you can copy straight into Instagram, Facebook, or TikTok. Nothing is auto-published. Every generated post is saved below so you can come back to it later.
     </p>
 
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
@@ -256,5 +320,54 @@ onMounted(loadPromptTypes)
         </div>
       </UCard>
     </div>
+
+    <UCard class="mt-6">
+      <template #header><p class="font-medium">Saved posts</p></template>
+
+      <div v-if="loadingSaved" class="text-sm text-stone-400">Loading…</div>
+      <p v-else-if="!savedPosts.length" class="text-sm text-stone-400">
+        Generated posts are saved here automatically — nothing yet.
+      </p>
+
+      <div v-else class="divide-y divide-stone-100">
+        <div v-for="saved in savedPosts" :key="saved.id" class="flex gap-3 py-4 first:pt-0 last:pb-0">
+          <div v-if="saved.imageUrl" class="w-16 shrink-0 max-w-full">
+            <div class="product-media aspect-square rounded-md">
+              <img :src="saved.imageUrl" :alt="saved.productName" class="h-full w-full object-cover">
+            </div>
+          </div>
+
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <UIcon :name="platformIcon(saved.platform)" class="size-4 text-stone-400" />
+              <p class="truncate text-sm font-medium">{{ saved.productName }}</p>
+              <UBadge size="xs" variant="soft" color="neutral">{{ saved.promptTypeLabel }}</UBadge>
+              <UBadge size="xs" variant="soft" color="neutral">{{ localeLabel(saved.locale) }}</UBadge>
+            </div>
+            <p class="mt-1 whitespace-pre-line text-sm text-stone-600 line-clamp-3">{{ saved.caption }}</p>
+            <p v-if="saved.extraNotes" class="mt-1 text-xs text-stone-400">
+              Extra details: {{ saved.extraNotes }}
+            </p>
+            <p class="mt-1 text-xs text-stone-400">{{ formatDate(saved.createdAt) }} · AI cost ${{ saved.cost.toFixed(4) }}</p>
+
+            <div class="mt-2 flex flex-wrap gap-2">
+              <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(saved.caption, 'Caption')">
+                Copy caption
+              </UButton>
+              <UButton size="xs" variant="soft" icon="i-lucide-copy" @click="copyText(saved.hashtags.map(h => `#${h}`).join(' '), 'Hashtags')">
+                Copy hashtags
+              </UButton>
+              <UButton
+                size="xs" variant="soft" color="error" icon="i-lucide-trash-2"
+                :loading="deletingId === saved.id"
+                @click="deleteSavedPost(saved.id)"
+              >
+                Delete
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </UCard>
   </div>
 </template>

@@ -8,6 +8,7 @@ import { productsService } from './products.service'
 import { generateSocialPost } from '../utils/openrouter'
 import { fetchMetaAdsInsights, fetchMetaAdsCampaigns } from '../utils/metaMarketingApi'
 import { fetchTiktokAdsInsights, fetchTiktokAdsCampaigns } from '../utils/tiktokMarketingApi'
+import { socialPostsRepository } from '../repositories/socialPosts.repository'
 
 export interface SocialPostPromptType {
   id: string
@@ -228,7 +229,7 @@ export const marketingService = {
     return { connected: true as const, insights, campaigns }
   },
 
-  /** Generates a ready-to-post caption + hashtags for one product/platform/locale/prompt-type. Not persisted — the admin copies it into the real platform's post composer. */
+  /** Generates a ready-to-post caption + hashtags for one product/platform/locale/prompt-type, and saves it to the post history (see listSavedPosts/deleteSavedPost) so it can be revisited or cleaned up later. */
   async generateSocialPost(event: H3Event, input: { productId: string, platform: 'instagram' | 'facebook' | 'tiktok', locale: 'fr' | 'en' | 'ar', promptTypeId: string, extraNotes?: string | null }) {
     const promptType = getSocialPostPromptType(input.promptTypeId)
     const [product, settings] = await Promise.all([
@@ -253,12 +254,37 @@ export const marketingService = {
       extraNotes: input.extraNotes,
     })
 
-    return {
+    const imageUrl = product.images[0]?.url ?? null
+    const id = await socialPostsRepository.create(event, {
+      productId: product.id,
+      productName: name,
+      imageUrl,
+      platform: input.platform,
+      locale: input.locale,
+      promptTypeId: promptType.id,
+      promptTypeLabel: promptType.label,
+      extraNotes: input.extraNotes ?? null,
       caption: data.caption,
       hashtags: data.hashtags,
-      imageUrl: product.images[0]?.url ?? null,
+      cost,
+    })
+
+    return {
+      id,
+      caption: data.caption,
+      hashtags: data.hashtags,
+      imageUrl,
       productName: name,
       cost,
     }
+  },
+
+  /** Saved history of generated posts, newest first — see server/repositories/socialPosts.repository.ts. */
+  async listSavedPosts(event: H3Event) {
+    return socialPostsRepository.list(event)
+  },
+
+  async deleteSavedPost(event: H3Event, id: string) {
+    await socialPostsRepository.remove(event, id)
   },
 }

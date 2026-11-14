@@ -29,6 +29,13 @@
       "when": 1794602110617,
       "tag": "0003_minor_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794671813852,
+      "tag": "0004_brown_molly_hayes",
+      "breakpoints": true
     }
   ]
 }
