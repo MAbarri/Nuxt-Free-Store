@@ -66,7 +66,16 @@ async function ensureInit(): Promise<void> {
         // We fire GA4's `page_view` ourselves (see trackPageView) so it
         // fires consistently on client-side SPA navigations too.
         w.gtag('config', config.gaMeasurementId, { send_page_view: false })
-        loadScriptOnce('ga4-gtag-js', `https://www.googletagmanager.com/gtag/js?id=${config.gaMeasurementId}`)
+        // Google's current install snippet loads gtm.js (the unified Google tag
+        // loader), not the older gtag/js endpoint — every Google tag, including
+        // plain GA4 ones, is now backed by a managed Tag Manager-style container
+        // server-side, and gtag/js alone doesn't reliably drive it for newly
+        // created properties (confirmed via Tag Assistant: the tag loaded but
+        // "no tags were evaluated" — the gtag('config') call never reached the
+        // container because it was fetched through the wrong loader).
+        // The gtag('js'/'config') calls above still work unchanged — see
+        // https://developers.google.com/tag-platform/gtagjs/install.
+        loadScriptOnce('ga4-gtag-js', `https://www.googletagmanager.com/gtm.js?id=${config.gaMeasurementId}`)
       }
 
       if (config.fbPixelId) {
