@@ -409,7 +409,7 @@ onMounted(load)
           <div class="space-y-4">
             <UFormField label="Hero image (desktop)">
               <div class="space-y-3">
-                <div class="product-media aspect-[16/9] rounded-md">
+                <div class="product-media aspect-[16/9] w-72 max-w-full rounded-md">
                   <img v-if="form.hero.imageUrl" :src="form.hero.imageUrl" alt="Hero" class="h-full w-full object-cover">
                   <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
                     <UIcon name="i-lucide-image" class="size-10" />
