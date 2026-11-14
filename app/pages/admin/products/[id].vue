@@ -644,42 +644,182 @@ async function saveAiImages() {
   }
 }
 
-// --- Variants ---
-const variantModalOpen = ref(false)
-const variantForm = reactive({ sku: '', price: null as number | null, stock: 0, isActive: true, selectedValues: {} as Record<string, string> })
-const savingVariant = ref(false)
-
-function openVariantModal() {
-  variantForm.sku = ''
-  variantForm.price = null
-  variantForm.stock = 0
-  variantForm.isActive = true
-  variantForm.selectedValues = {}
-  variantModalOpen.value = true
+// --- Variants: generate (multiple combinations at once) ---
+interface GeneratedVariantRow {
+  attributeValueIds: string[]
+  label: string
+  sku: string
+  price: number | null
+  stock: number
+  isActive: boolean
+  exists: boolean
 }
 
-async function createVariant() {
-  savingVariant.value = true
+const allAttributeValues = computed(() =>
+  attributes.value.flatMap(a => a.values.map(v => ({ ...v, attributeId: a.id, attributeName: a.name }))),
+)
+function valueById(id: string) {
+  return allAttributeValues.value.find(v => v.id === id)
+}
+function comboKey(attributeValueIds: string[]) {
+  return [...attributeValueIds].sort().join('|')
+}
+const existingComboKeys = computed(() =>
+  new Set((product.value?.variants ?? []).map(v => comboKey(v.attributes.map(a => a.valueId)))),
+)
+
+/** Turns an attribute value like "Rouge Bordeaux" into a short SKU segment like "ROUGEBORDEAUX". */
+function skuPart(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim()
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 12)
+}
+function suggestVariantSku(attributeValueIds: string[]): string {
+  const parts = attributeValueIds.map(id => valueById(id)?.value).filter((v): v is string => !!v).map(skuPart)
+  return [form.sku, ...parts].filter(Boolean).join('-')
+}
+
+const variantGenModalOpen = ref(false)
+const variantGenPhase = ref<'select' | 'review'>('select')
+const variantGenSelected = reactive<Record<string, string[]>>({})
+const variantGenRows = ref<GeneratedVariantRow[]>([])
+const savingVariantGen = ref(false)
+
+const variantGenCombosCount = computed(() => {
+  const counts = attributes.value.map(a => variantGenSelected[a.id]?.length ?? 0).filter(n => n > 0)
+  if (!counts.length) return 0
+  return counts.reduce((acc, n) => acc * n, 1)
+})
+
+function openVariantGenerator() {
+  for (const attr of attributes.value) variantGenSelected[attr.id] = []
+  variantGenRows.value = []
+  variantGenPhase.value = 'select'
+  variantGenModalOpen.value = true
+}
+
+function toggleVariantGenValue(attributeId: string, valueId: string, checked: boolean) {
+  const list = variantGenSelected[attributeId] ?? []
+  variantGenSelected[attributeId] = checked ? [...list, valueId] : list.filter(id => id !== valueId)
+}
+
+function previewVariantCombos() {
+  const activeAttrs = attributes.value.filter(a => (variantGenSelected[a.id]?.length ?? 0) > 0)
+  if (!activeAttrs.length) return
+
+  let combos: string[][] = [[]]
+  for (const attr of activeAttrs) {
+    const values = variantGenSelected[attr.id] ?? []
+    const next: string[][] = []
+    for (const combo of combos) {
+      for (const valueId of values) next.push([...combo, valueId])
+    }
+    combos = next
+  }
+
+  variantGenRows.value = combos.map((ids) => {
+    const label = ids.map((id) => {
+      const v = valueById(id)
+      return v ? `${v.attributeName}: ${v.value}` : ''
+    }).filter(Boolean).join(' / ')
+    return {
+      attributeValueIds: ids,
+      label,
+      sku: suggestVariantSku(ids),
+      price: null,
+      stock: 0,
+      isActive: true,
+      exists: existingComboKeys.value.has(comboKey(ids)),
+    }
+  })
+  variantGenPhase.value = 'review'
+}
+
+function removeVariantGenRow(row: GeneratedVariantRow) {
+  variantGenRows.value = variantGenRows.value.filter(r => r !== row)
+}
+
+async function submitVariantGen() {
+  const toCreate = variantGenRows.value.filter(r => !r.exists)
+  if (!toCreate.length) {
+    variantGenModalOpen.value = false
+    return
+  }
+  savingVariantGen.value = true
   try {
-    const attributeValueIds = Object.values(variantForm.selectedValues).filter(Boolean)
-    await apiFetch(`/api/admin/products/${productId}/variants`, {
-      method: 'POST',
+    const result = await apiFetch<{ created: unknown[], skipped: unknown[], failed: Array<{ sku: string, reason: string }> }>(
+      `/api/admin/products/${productId}/variants/bulk`,
+      {
+        method: 'POST',
+        body: {
+          combos: toCreate.map(r => ({
+            attributeValueIds: r.attributeValueIds,
+            sku: r.sku,
+            price: r.price ? Math.round(r.price * 100) : null,
+            stock: r.stock,
+            isActive: r.isActive,
+          })),
+        },
+      },
+    )
+    variantGenModalOpen.value = false
+    await load()
+    const parts = [`${result.created.length} variant${result.created.length === 1 ? '' : 's'} created`]
+    if (result.skipped.length) parts.push(`${result.skipped.length} already existed`)
+    if (result.failed.length) parts.push(`${result.failed.length} failed (SKU already in use)`)
+    toast.add({ title: parts.join(', '), color: result.failed.length ? 'warning' : 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to create variants', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    savingVariantGen.value = false
+  }
+}
+
+// --- Variants: edit an existing one ---
+const editVariantModalOpen = ref(false)
+const editingVariant = ref<Variant | null>(null)
+const editVariantForm = reactive({ sku: '', price: null as number | null, isActive: true, selectedValues: {} as Record<string, string> })
+const savingEditVariant = ref(false)
+
+function openEditVariant(variant: Variant) {
+  editingVariant.value = variant
+  editVariantForm.sku = variant.sku
+  editVariantForm.price = variant.price ? variant.price / 100 : null
+  editVariantForm.isActive = variant.isActive
+  editVariantForm.selectedValues = {}
+  for (const attr of variant.attributes) editVariantForm.selectedValues[attr.attributeId] = attr.valueId
+  editVariantModalOpen.value = true
+}
+
+async function submitEditVariant() {
+  if (!editingVariant.value) return
+  savingEditVariant.value = true
+  try {
+    const attributeValueIds = Object.values(editVariantForm.selectedValues).filter(Boolean)
+    await apiFetch(`/api/admin/products/${productId}/variants/${editingVariant.value.id}`, {
+      method: 'PUT',
       body: {
-        sku: variantForm.sku,
-        price: variantForm.price ? Math.round(variantForm.price * 100) : null,
-        stock: variantForm.stock,
-        isActive: variantForm.isActive,
+        sku: editVariantForm.sku,
+        price: editVariantForm.price ? Math.round(editVariantForm.price * 100) : null,
+        isActive: editVariantForm.isActive,
         attributeValueIds,
       },
     })
-    variantModalOpen.value = false
+    editVariantModalOpen.value = false
     await load()
+    toast.add({ title: 'Variant updated', color: 'success' })
   }
   catch (e) {
-    toast.add({ title: 'Failed to create variant', description: apiErrorMessage(e), color: 'error' })
+    toast.add({ title: 'Failed to update variant', description: apiErrorMessage(e), color: 'error' })
   }
   finally {
-    savingVariant.value = false
+    savingEditVariant.value = false
   }
 }
 
@@ -1121,43 +1261,68 @@ onMounted(load)
       <template #header>
         <div class="flex items-center justify-between">
           <p class="font-medium">Variants</p>
-          <UButton size="sm" icon="i-lucide-plus" @click="openVariantModal">Add variant</UButton>
+          <UButton size="sm" icon="i-lucide-plus" @click="openVariantGenerator">Generate variants</UButton>
         </div>
       </template>
 
+      <p v-if="!product.variants.length" class="py-6 text-center text-sm text-stone-400">
+        No variants yet — this product sells as a single SKU.
+      </p>
 
-      <table class="w-full text-sm">
-        <thead class="text-left text-xs uppercase tracking-wide text-stone-500">
-          <tr>
-            <th class="py-2">SKU</th>
-            <th class="py-2">Attributes</th>
-            <th class="py-2">Price override</th>
-            <th class="py-2">Stock</th>
-            <th class="py-2">Active</th>
-            <th class="py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="!product.variants.length">
-            <td colspan="6" class="py-6 text-center text-stone-400">No variants yet — this product sells as a single SKU.</td>
-          </tr>
-          <tr v-for="variant in product.variants" :key="variant.id" class="border-t border-stone-100">
-            <td class="py-2 font-medium">{{ variant.sku }}</td>
-            <td class="py-2">{{ variantLabel(variant) }}</td>
-            <td class="py-2">{{ variant.price ? (variant.price / 100).toFixed(2) : '—' }}</td>
-            <td class="py-2">
-              {{ variant.stock }}
-              <UButton size="xs" variant="ghost" icon="i-lucide-pencil" @click="openAdjust(variant)" />
-            </td>
-            <td class="py-2">
-              <USwitch :model-value="variant.isActive" @update:model-value="toggleVariantActive(variant)" />
-            </td>
-            <td class="py-2 text-right">
-              <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeVariant(variant)" />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Phone-width view: stacked cards instead of a cramped 6-column table. -->
+      <ul v-else class="divide-y divide-stone-100 sm:hidden">
+        <li v-for="variant in product.variants" :key="variant.id" class="py-3">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium">{{ variant.sku }}</p>
+              <p class="text-xs text-stone-500">{{ variantLabel(variant) }}</p>
+            </div>
+            <USwitch :model-value="variant.isActive" @update:model-value="toggleVariantActive(variant)" />
+          </div>
+          <div class="mt-2 flex items-center justify-between text-xs text-stone-500">
+            <span>{{ variant.price ? formatPrice(variant.price) : 'No price override' }}</span>
+            <span>Stock: {{ variant.stock }}</span>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <UButton size="xs" variant="soft" icon="i-lucide-pencil" @click="openEditVariant(variant)">Edit</UButton>
+            <UButton size="xs" variant="soft" icon="i-lucide-package-plus" @click="openAdjust(variant)">Adjust stock</UButton>
+            <UButton size="xs" variant="soft" color="error" icon="i-lucide-trash-2" @click="removeVariant(variant)">Delete</UButton>
+          </div>
+        </li>
+      </ul>
+
+      <div v-if="product.variants.length" class="hidden overflow-x-auto sm:block">
+        <table class="w-full text-sm">
+          <thead class="text-left text-xs uppercase tracking-wide text-stone-500">
+            <tr>
+              <th class="py-2">SKU</th>
+              <th class="py-2">Attributes</th>
+              <th class="py-2">Price override</th>
+              <th class="py-2">Stock</th>
+              <th class="py-2">Active</th>
+              <th class="py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="variant in product.variants" :key="variant.id" class="border-t border-stone-100">
+              <td class="py-2 font-medium">{{ variant.sku }}</td>
+              <td class="py-2">{{ variantLabel(variant) }}</td>
+              <td class="py-2">{{ variant.price ? formatPrice(variant.price) : '—' }}</td>
+              <td class="py-2">
+                {{ variant.stock }}
+                <UButton size="xs" variant="ghost" icon="i-lucide-package-plus" @click="openAdjust(variant)" />
+              </td>
+              <td class="py-2">
+                <USwitch :model-value="variant.isActive" @update:model-value="toggleVariantActive(variant)" />
+              </td>
+              <td class="py-2 text-right">
+                <UButton size="xs" variant="ghost" icon="i-lucide-pencil" @click="openEditVariant(variant)" />
+                <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" @click="removeVariant(variant)" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </UCard>
 
     <UCard class="mt-6">
@@ -1319,23 +1484,90 @@ onMounted(load)
       </template>
     </UModal>
 
-    <UModal v-model:open="variantModalOpen" title="New variant">
+    <UModal v-model:open="variantGenModalOpen" title="Generate variants" :ui="{ content: 'sm:max-w-2xl' }">
       <template #body>
-        <form class="space-y-4" @submit.prevent="createVariant">
-          <UFormField label="SKU"><UInput v-model="variantForm.sku" required class="w-full" /></UFormField>
-          <UFormField label="Price override (DH, optional)"><UInputNumber v-model="variantForm.price" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
-          <UFormField label="Initial stock"><UInputNumber v-model="variantForm.stock" :min="0" class="w-full" /></UFormField>
+        <div v-if="variantGenPhase === 'select'">
+          <p class="text-sm text-stone-500">
+            Tick every value that applies to this product for each attribute — every combination will be generated at once. Leave an attribute untouched to skip it entirely (e.g. a product that only varies by Size).
+          </p>
+          <p v-if="!attributes.length" class="mt-4 text-sm text-stone-400">
+            No attributes configured yet. <NuxtLink to="/admin/attributes" class="underline">Set them up in Attributes</NuxtLink>.
+          </p>
+          <div v-for="attr in attributes" :key="attr.id" class="mt-4">
+            <p class="text-sm font-medium">{{ attr.name }}</p>
+            <div class="mt-2 flex flex-wrap gap-3">
+              <UCheckbox
+                v-for="value in attr.values" :key="value.id"
+                :model-value="(variantGenSelected[attr.id] || []).includes(value.id)"
+                :label="value.value"
+                @update:model-value="(v) => toggleVariantGenValue(attr.id, value.id, !!v)"
+              />
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="variantGenModalOpen = false">Cancel</UButton>
+            <UButton :disabled="!variantGenCombosCount" @click="previewVariantCombos">
+              Preview {{ variantGenCombosCount }} combination{{ variantGenCombosCount === 1 ? '' : 's' }}
+            </UButton>
+          </div>
+        </div>
+
+        <div v-else>
+          <p class="text-sm text-stone-500">
+            Review each combination's SKU, optional price override, and starting stock before creating. Already-existing combinations are skipped automatically.
+          </p>
+          <ul class="mt-4 max-h-[26rem] space-y-3 overflow-y-auto">
+            <li
+              v-for="row in variantGenRows" :key="row.attributeValueIds.join('|')"
+              class="rounded-md border p-3"
+              :class="row.exists ? 'border-stone-100 bg-stone-50 opacity-60' : 'border-stone-200'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-medium">{{ row.label }}</p>
+                <UBadge v-if="row.exists" size="xs" color="neutral" variant="subtle">Already exists</UBadge>
+                <UButton v-else size="xs" variant="ghost" color="error" icon="i-lucide-x" @click="removeVariantGenRow(row)" />
+              </div>
+              <div v-if="!row.exists" class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <UInput v-model="row.sku" placeholder="SKU" size="sm" class="w-full" />
+                <UInputNumber v-model="row.price" :min="0" :step="1" :step-snapping="false" placeholder="Price override (DH)" size="sm" class="w-full" />
+                <UInputNumber v-model="row.stock" :min="0" placeholder="Stock" size="sm" class="w-full" />
+              </div>
+            </li>
+          </ul>
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-2">
+            <UButton variant="ghost" color="neutral" @click="variantGenPhase = 'select'">Back</UButton>
+            <div class="flex gap-2">
+              <UButton variant="ghost" color="neutral" @click="variantGenModalOpen = false">Cancel</UButton>
+              <UButton
+                :loading="savingVariantGen"
+                :disabled="!variantGenRows.some(r => !r.exists)"
+                @click="submitVariantGen"
+              >
+                Create {{ variantGenRows.filter(r => !r.exists).length }} variant{{ variantGenRows.filter(r => !r.exists).length === 1 ? '' : 's' }}
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="editVariantModalOpen" title="Edit variant">
+      <template #body>
+        <form class="space-y-4" @submit.prevent="submitEditVariant">
+          <UFormField label="SKU"><UInput v-model="editVariantForm.sku" required class="w-full" /></UFormField>
+          <UFormField label="Price override (DH, optional)"><UInputNumber v-model="editVariantForm.price" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
           <UFormField v-for="attr in attributes" :key="attr.id" :label="attr.name">
             <USelect
-              :model-value="variantForm.selectedValues[attr.id] || 'none'"
+              :model-value="editVariantForm.selectedValues[attr.id] || 'none'"
               :items="[{ label: 'None', value: 'none' }, ...attr.values.map(v => ({ label: v.value, value: v.id }))]"
-              @update:model-value="(v) => variantForm.selectedValues[attr.id] = v === 'none' ? '' : v"
+              @update:model-value="(v) => editVariantForm.selectedValues[attr.id] = v === 'none' ? '' : v"
             />
           </UFormField>
-          <UCheckbox v-model="variantForm.isActive" label="Active" />
+          <UCheckbox v-model="editVariantForm.isActive" label="Active" />
+          <p class="text-xs text-stone-400">Stock is edited separately via the stock icon next to it (keeps a history of changes).</p>
           <div class="flex justify-end gap-2 pt-2">
-            <UButton variant="ghost" color="neutral" @click="variantModalOpen = false">Cancel</UButton>
-            <UButton type="submit" :loading="savingVariant">Create</UButton>
+            <UButton variant="ghost" color="neutral" @click="editVariantModalOpen = false">Cancel</UButton>
+            <UButton type="submit" :loading="savingEditVariant">Save</UButton>
           </div>
         </form>
       </template>

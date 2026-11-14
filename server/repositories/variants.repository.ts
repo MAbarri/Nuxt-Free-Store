@@ -56,6 +56,14 @@ export const variantsRepository = {
     return row ?? null
   },
 
+  async findValuesByIds(event: H3Event, ids: string[]) {
+    if (!ids.length) return []
+    const db = useDb(event)
+    return db.select({ id: productAttributeValues.id, value: productAttributeValues.value })
+      .from(productAttributeValues)
+      .where(inArray(productAttributeValues.id, ids))
+  },
+
   async create(event: H3Event, productId: string, input: VariantInput) {
     const db = useDb(event)
     const id = generateId('vrt')
