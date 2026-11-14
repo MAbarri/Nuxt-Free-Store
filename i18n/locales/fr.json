@@ -44,7 +44,9 @@
     "unavailable": "Cet article n'est plus disponible — veuillez le retirer.",
     "onlyLeftInStock": "Il ne reste que {count} en stock.",
     "shippingCalculatedAtCheckout": "Les frais de livraison sont calculés au moment du paiement.",
-    "proceedToCheckout": "Passer la commande"
+    "proceedToCheckout": "Passer la commande",
+    "freeShippingProgress": "Plus que {amount} pour la livraison gratuite !",
+    "freeShippingUnlocked": "Livraison gratuite débloquée !"
   },
   "checkout": {
     "title": "Commande",
@@ -104,7 +106,11 @@
     "addedToCart": "Ajouté au panier",
     "couldNotAddToCart": "Impossible d'ajouter au panier",
     "youMayAlsoLike": "Vous aimerez aussi",
-    "notFound": "Produit introuvable"
+    "notFound": "Produit introuvable",
+    "quantityDiscountBadge": "Achetez {minQty}+ et économisez {percent}%",
+    "frequentlyBoughtTogether": "Souvent achetés ensemble",
+    "addAllToCart": "Tout ajouter au panier",
+    "addedAllToCart": "Articles ajoutés au panier"
   },
   "landing": {
     "sizeGuide": "Guide des tailles",
@@ -120,7 +126,9 @@
     "shippingNote": "Les frais de livraison sont confirmés lors de la validation de votre commande. Payez en espèces à la réception — aucune carte requise.",
     "whyYoullLoveIt": "Pourquoi vous allez l'aimer",
     "orderNowShort": "Commander",
-    "couldNotPlaceOrder": "Impossible de passer la commande"
+    "couldNotPlaceOrder": "Impossible de passer la commande",
+    "quantityDiscountBadge": "Achetez {minQty}+ et économisez {percent}%",
+    "addCompanion": "Ajouter {name} (+{price})"
   },
   "orderConfirmation": {
     "notFound": "Commande introuvable",

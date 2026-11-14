@@ -44,7 +44,9 @@
     "unavailable": "No longer available — please remove this item.",
     "onlyLeftInStock": "Only {count} left in stock.",
     "shippingCalculatedAtCheckout": "Shipping is calculated at checkout.",
-    "proceedToCheckout": "Proceed to checkout"
+    "proceedToCheckout": "Proceed to checkout",
+    "freeShippingProgress": "You're {amount} away from free shipping!",
+    "freeShippingUnlocked": "Free shipping unlocked!"
   },
   "checkout": {
     "title": "Checkout",
@@ -104,7 +106,11 @@
     "addedToCart": "Added to cart",
     "couldNotAddToCart": "Could not add to cart",
     "youMayAlsoLike": "You may also like",
-    "notFound": "Product not found"
+    "notFound": "Product not found",
+    "quantityDiscountBadge": "Buy {minQty}+ and save {percent}%",
+    "frequentlyBoughtTogether": "Frequently bought together",
+    "addAllToCart": "Add all to cart",
+    "addedAllToCart": "Items added to cart"
   },
   "landing": {
     "sizeGuide": "Size guide",
@@ -120,7 +126,9 @@
     "shippingNote": "Delivery fees are confirmed when your order is reviewed. Pay with cash when it arrives — no card required.",
     "whyYoullLoveIt": "Why you'll love it",
     "orderNowShort": "Order now",
-    "couldNotPlaceOrder": "Could not place order"
+    "couldNotPlaceOrder": "Could not place order",
+    "quantityDiscountBadge": "Buy {minQty}+ and save {percent}%",
+    "addCompanion": "Add {name} (+{price})"
   },
   "orderConfirmation": {
     "notFound": "Order not found",

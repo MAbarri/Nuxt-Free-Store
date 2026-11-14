@@ -45,6 +45,49 @@ async function addToCart() {
   }
 }
 
+// Quantity-break discount preview — the real total is always the server's.
+const quantityDiscountPreview = computed(() => {
+  if (!product.value?.quantityDiscountMinQty || !product.value?.quantityDiscountPercent) return null
+  return applyQuantityDiscount(displayPrice.value, quantity.value, product.value.quantityDiscountMinQty, product.value.quantityDiscountPercent)
+})
+
+// --- Frequently bought together (Roadmap Phase D) ---
+const addingCompanionId = ref<string | null>(null)
+const addingAllCompanions = ref(false)
+
+async function addCompanionToCart(companion: any) {
+  if (!companion.inStock || !companion.defaultVariantId) return
+  addingCompanionId.value = companion.id
+  try {
+    await addCartItem(companion.id, companion.defaultVariantId, 1)
+    toast.add({ title: t('product.addedToCart'), color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: t('product.couldNotAddToCart'), description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    addingCompanionId.value = null
+  }
+}
+
+async function addAllCompanionsToCart() {
+  const available = (product.value?.upsells ?? []).filter((u: any) => u.inStock && u.defaultVariantId)
+  if (!available.length) return
+  addingAllCompanions.value = true
+  try {
+    for (const companion of available) {
+      await addCartItem(companion.id, companion.defaultVariantId, 1)
+    }
+    toast.add({ title: t('product.addedAllToCart'), color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: t('product.couldNotAddToCart'), description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    addingAllCompanions.value = false
+  }
+}
+
 </script>
 
 <template>
@@ -104,6 +147,9 @@ async function addToCart() {
           <span v-if="product.compareAtPrice" class="me-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
           {{ formatPrice(displayPrice) }}
         </p>
+        <p v-if="product.quantityDiscountMinQty && product.quantityDiscountPercent" class="mt-1 text-sm font-medium text-clay-700">
+          {{ t('product.quantityDiscountBadge', { minQty: product.quantityDiscountMinQty, percent: product.quantityDiscountPercent }) }}
+        </p>
 
         <p v-if="product.shortDescription" class="mt-4 text-stone-600">
           {{ product.shortDescription }}
@@ -152,12 +198,53 @@ async function addToCart() {
             {{ t('product.addToCart') }}
           </UButton>
         </div>
+        <p v-if="quantityDiscountPreview?.discountApplied" class="mt-2 text-sm text-clay-700">
+          {{ formatPrice(quantityDiscountPreview.subtotal) }} {{ t('common.total').toLowerCase() }} ({{ product.quantityDiscountPercent }}% off)
+        </p>
 
         <div v-if="product.description" class="mt-8 border-t border-stone-200 pt-6 text-sm text-stone-600">
           {{ product.description }}
         </div>
       </div>
     </div>
+
+    <!-- Frequently bought together -->
+    <section v-if="product.upsells?.length" class="mt-20">
+      <div class="flex items-center justify-between">
+        <h2 class="font-display text-2xl">
+          {{ t('product.frequentlyBoughtTogether') }}
+        </h2>
+        <UButton
+          v-if="product.upsells.some((u: any) => u.inStock)"
+          size="sm" variant="soft" :loading="addingAllCompanions"
+          @click="addAllCompanionsToCart"
+        >
+          {{ t('product.addAllToCart') }}
+        </UButton>
+      </div>
+      <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div v-for="companion in product.upsells" :key="companion.id">
+          <NuxtLink :to="`/products/${companion.slug}`" class="block">
+            <div class="product-media aspect-[3/4] rounded-md">
+              <img v-if="companion.imageUrl" :src="companion.imageUrl" :alt="companion.name" class="h-full w-full object-cover">
+              <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+                <UIcon name="i-lucide-shirt" class="size-8" />
+              </div>
+            </div>
+            <p class="mt-2 truncate text-sm font-medium">{{ companion.name }}</p>
+            <p class="text-sm text-stone-500">{{ formatPrice(companion.price) }}</p>
+          </NuxtLink>
+          <UButton
+            class="mt-2" size="xs" variant="soft" block
+            :disabled="!companion.inStock"
+            :loading="addingCompanionId === companion.id"
+            @click="addCompanionToCart(companion)"
+          >
+            {{ companion.inStock ? t('product.addToCart') : t('product.outOfStock') }}
+          </UButton>
+        </div>
+      </div>
+    </section>
 
     <!-- Related products -->
     <section v-if="product.related?.length" class="mt-20">

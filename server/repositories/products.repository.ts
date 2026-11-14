@@ -20,6 +20,8 @@ export interface ProductInput {
   layoutStyle?: 'standard' | 'landing'
   landingBenefits?: Array<{ icon?: string, text: string }> | null
   landingBlocks?: Array<{ imageUrl: string, caption?: string }> | null
+  quantityDiscountMinQty?: number | null
+  quantityDiscountPercent?: number | null
 }
 
 export interface ProductListFilters {
@@ -97,6 +99,8 @@ export const productsRepository = {
       layoutStyle: input.layoutStyle ?? 'landing',
       landingBenefits: input.landingBenefits ?? null,
       landingBlocks: input.landingBlocks ?? null,
+      quantityDiscountMinQty: input.quantityDiscountMinQty ?? null,
+      quantityDiscountPercent: input.quantityDiscountPercent ?? null,
       createdAt: now,
       updatedAt: now,
     })

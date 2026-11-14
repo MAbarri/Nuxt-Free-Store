@@ -12,6 +12,12 @@ const DEFAULTS = {
   faviconUrl: null as string | null,
   accentColor: '#bb6540',
   defaultShippingFee: 500, // minor currency unit (cents)
+  // Display-only hint for the cart's free-shipping progress bar (see
+  // Roadmap Phase D) — null hides the bar entirely. The real fee is still
+  // computed correctly per-city at checkout via shippingService.calculateFee;
+  // this can visually disagree with a specific city's actual zone threshold,
+  // an accepted tradeoff since the real city isn't known until the address step.
+  defaultFreeShippingThreshold: null as number | null,
   announcementBar: 'Nouvelle collection · Découvrez votre prochain coup de cœur',
   hero: {
     title: 'New season, quietly considered',

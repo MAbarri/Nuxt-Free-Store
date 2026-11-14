@@ -41,6 +41,8 @@ export interface ProductWriteInput {
   layoutStyle?: 'standard' | 'landing'
   landingBenefits?: Array<{ icon?: string, text: string }> | null
   landingBlocks?: Array<{ imageUrl: string, caption?: string }> | null
+  quantityDiscountMinQty?: number | null
+  quantityDiscountPercent?: number | null
 }
 
 export const productsService = {
@@ -124,6 +126,8 @@ export const productsService = {
       layoutStyle: source.layoutStyle,
       landingBenefits: source.landingBenefits,
       landingBlocks: source.landingBlocks,
+      quantityDiscountMinQty: source.quantityDiscountMinQty,
+      quantityDiscountPercent: source.quantityDiscountPercent,
     })
     if (!copy) throw createError({ statusCode: 500, statusMessage: 'Failed to duplicate product' })
 

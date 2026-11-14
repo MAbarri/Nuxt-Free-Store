@@ -4,6 +4,7 @@ import { cartRepository } from '../repositories/cart.repository'
 import { resolveCustomerProfileId } from '../utils/customer'
 import { getGuestToken, getOrCreateGuestToken } from '../utils/guestToken'
 import { useDb } from '../utils/db'
+import { applyQuantityDiscount } from '../utils/pricing'
 import { products, productVariants, variantAttributeValues, productAttributeValues, productAttributes } from '../database/schema'
 
 async function findExistingCart(event: H3Event) {
@@ -68,6 +69,10 @@ async function hydrate(event: H3Event, cartId: string) {
     const available = productAvailable && variantAvailable && stock > 0
     const unitPrice = variant?.price ?? product?.basePrice ?? 0
     const cappedQuantity = Math.min(item.quantity, Math.max(stock, 0))
+    const effectiveQuantity = available ? cappedQuantity : 0
+    const { subtotal, discountApplied } = applyQuantityDiscount(
+      unitPrice, effectiveQuantity, product?.quantityDiscountMinQty, product?.quantityDiscountPercent,
+    )
 
     return {
       id: item.id,
@@ -83,7 +88,10 @@ async function hydrate(event: H3Event, cartId: string) {
       stock,
       exceedsStock: available && item.quantity > stock,
       unitPrice,
-      subtotal: unitPrice * (available ? cappedQuantity : 0),
+      subtotal,
+      quantityDiscountApplied: discountApplied,
+      quantityDiscountMinQty: product?.quantityDiscountMinQty ?? null,
+      quantityDiscountPercent: product?.quantityDiscountPercent ?? null,
     }
   }))
 

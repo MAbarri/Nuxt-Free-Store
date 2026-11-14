@@ -27,6 +27,8 @@ export const productWriteSchema = z.object({
   layoutStyle: z.enum(['standard', 'landing']).optional(),
   landingBenefits: z.array(landingBenefitSchema).max(6).optional().nullable(),
   landingBlocks: z.array(landingBlockSchema).max(3).optional().nullable(),
+  quantityDiscountMinQty: z.number().int().min(2).max(999).optional().nullable(),
+  quantityDiscountPercent: z.number().int().min(1).max(90).optional().nullable(),
 })
 
 export const productUpdateSchema = productWriteSchema.partial()

@@ -23,6 +23,14 @@ const form = reactive({
   deliveryInstructions: '',
 })
 
+const addCompanion = ref(false)
+const companion = computed(() => props.product?.upsells?.[0] ?? null)
+
+const quantityDiscountPreview = computed(() => {
+  if (!props.product?.quantityDiscountMinQty || !props.product?.quantityDiscountPercent) return null
+  return applyQuantityDiscount(displayPrice.value, quantity.value, props.product.quantityDiscountMinQty, props.product.quantityDiscountPercent)
+})
+
 const submitting = ref(false)
 const submitError = ref('')
 const { trackInitiateCheckout, trackPurchase } = useAnalytics()
@@ -44,6 +52,8 @@ async function submitOrder() {
         city: form.city,
         addressLine: form.addressLine,
         deliveryInstructions: form.deliveryInstructions || undefined,
+        companionProductId: addCompanion.value && companion.value ? companion.value.id : undefined,
+        companionVariantId: addCompanion.value && companion.value ? companion.value.defaultVariantId : undefined,
       },
     })
     trackPurchase({ orderId: order.id, value: order.total / 100, contentIds: [props.product.id], numItems: quantity.value })
@@ -121,6 +131,9 @@ function scrollToOrderForm() {
       <span v-if="product.compareAtPrice" class="me-2 text-stone-400 line-through">{{ formatPrice(product.compareAtPrice) }}</span>
       {{ formatPrice(displayPrice) }}
     </p>
+    <p v-if="product.quantityDiscountMinQty && product.quantityDiscountPercent" class="mt-1 text-sm font-medium text-clay-700">
+      {{ t('landing.quantityDiscountBadge', { minQty: product.quantityDiscountMinQty, percent: product.quantityDiscountPercent }) }}
+    </p>
 
     <p v-if="product.shortDescription" class="mt-4 text-stone-600">
       {{ product.shortDescription }}
@@ -164,6 +177,24 @@ function scrollToOrderForm() {
         {{ inStock ? t('landing.inStock', { count: selectedVariant?.stock }) : t('landing.outOfStock') }}
       </p>
     </div>
+    <p v-if="quantityDiscountPreview?.discountApplied" class="mt-2 text-sm text-clay-700">
+      {{ formatPrice(quantityDiscountPreview.subtotal) }} ({{ product.quantityDiscountPercent }}% off)
+    </p>
+
+    <!-- Frequently bought together add-on (fixed quantity 1, Roadmap Phase D) -->
+    <label
+      v-if="companion"
+      class="mt-6 flex cursor-pointer items-center gap-3 rounded-lg border border-stone-200 p-3"
+      :class="{ 'opacity-50': !companion.inStock }"
+    >
+      <UCheckbox v-model="addCompanion" :disabled="!companion.inStock" />
+      <div class="product-media size-14 shrink-0 rounded-md">
+        <img v-if="companion.imageUrl" :src="companion.imageUrl" :alt="companion.name" class="h-full w-full object-cover">
+      </div>
+      <span class="text-sm">
+        {{ t('landing.addCompanion', { name: companion.name, price: formatPrice(companion.price) }) }}
+      </span>
+    </label>
 
     <!-- Embedded direct-order form: this replaces cart/checkout for Landing-style products -->
     <div ref="orderFormEl" class="mt-8 rounded-lg border border-stone-200 bg-white p-6">

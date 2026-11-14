@@ -32,6 +32,7 @@ export const settingsUpdateSchema = z.object({
   faviconUrl: z.string().trim().min(1).nullable().optional(),
   accentColor: z.string().trim().regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i, 'Must be a hex color like #bb6540').optional(),
   defaultShippingFee: z.number().int().nonnegative().optional(),
+  defaultFreeShippingThreshold: z.number().int().nonnegative().nullable().optional(),
   hero: heroSchema.optional(),
   promo: promoSchema.optional(),
   trustBadges: z.array(trustBadgeSchema).max(6).optional(),

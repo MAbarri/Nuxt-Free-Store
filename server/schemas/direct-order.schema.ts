@@ -13,4 +13,6 @@ export const directOrderSchema = z.object({
   city: z.string().trim().min(1, 'City is required'),
   addressLine: z.string().trim().min(1, 'Delivery address is required'),
   deliveryInstructions: z.string().trim().max(500).optional(),
+  companionProductId: z.string().trim().min(1).optional(),
+  companionVariantId: z.string().trim().min(1).optional(),
 })

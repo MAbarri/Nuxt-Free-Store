@@ -44,7 +44,9 @@
     "unavailable": "لم يعد هذا المنتج متوفرًا — يرجى إزالته.",
     "onlyLeftInStock": "لم يتبق سوى {count} في المخزون.",
     "shippingCalculatedAtCheckout": "يتم احتساب رسوم التوصيل عند إتمام الطلب.",
-    "proceedToCheckout": "إتمام الطلب"
+    "proceedToCheckout": "إتمام الطلب",
+    "freeShippingProgress": "تبقى {amount} فقط للحصول على توصيل مجاني!",
+    "freeShippingUnlocked": "لقد حصلت على توصيل مجاني!"
   },
   "checkout": {
     "title": "إتمام الطلب",
@@ -104,7 +106,11 @@
     "addedToCart": "تمت الإضافة إلى السلة",
     "couldNotAddToCart": "تعذرت الإضافة إلى السلة",
     "youMayAlsoLike": "قد يعجبك أيضًا",
-    "notFound": "المنتج غير موجود"
+    "notFound": "المنتج غير موجود",
+    "quantityDiscountBadge": "اشترِ {minQty}+ ووفّر {percent}٪",
+    "frequentlyBoughtTogether": "غالبًا ما يُشترى معًا",
+    "addAllToCart": "أضف الكل إلى السلة",
+    "addedAllToCart": "تمت إضافة المنتجات إلى السلة"
   },
   "landing": {
     "sizeGuide": "دليل المقاسات",
@@ -120,7 +126,9 @@
     "shippingNote": "يتم تأكيد رسوم التوصيل عند مراجعة طلبك. ادفع نقدًا عند الاستلام — لا حاجة لبطاقة بنكية.",
     "whyYoullLoveIt": "لماذا ستحبه",
     "orderNowShort": "اطلب الآن",
-    "couldNotPlaceOrder": "تعذر تأكيد الطلب"
+    "couldNotPlaceOrder": "تعذر تأكيد الطلب",
+    "quantityDiscountBadge": "اشترِ {minQty}+ ووفّر {percent}٪",
+    "addCompanion": "أضف {name} (+{price})"
   },
   "orderConfirmation": {
     "notFound": "الطلب غير موجود",

@@ -9,6 +9,7 @@ import { useDb } from '../utils/db'
 import { productTranslationsRepository, type ProductTranslationInput } from '../repositories/productTranslations.repository'
 import { categoryTranslationsRepository } from '../repositories/categoryTranslations.repository'
 import { applyProductTranslation, resolveLocaleFromEvent, type CatalogLocale } from '../utils/locale'
+import { productUpsellsService } from './productUpsells.service'
 
 export type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'popularity'
 
@@ -248,6 +249,8 @@ export const storefrontCatalogService = {
       related = result.rows.filter(r => r.id !== product.id).slice(0, 4)
     }
 
-    return { ...localizedProduct, images, variants, categories: localizedCategories, sizeGuide, related }
+    const upsells = await productUpsellsService.listForStorefront(event, product.id)
+
+    return { ...localizedProduct, images, variants, categories: localizedCategories, sizeGuide, related, upsells }
   },
 }

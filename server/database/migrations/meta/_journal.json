@@ -50,6 +50,13 @@
       "when": 1794676538580,
       "tag": "0006_loose_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794677627923,
+      "tag": "0007_wide_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

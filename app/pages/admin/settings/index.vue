@@ -19,6 +19,7 @@ interface Settings {
   faviconUrl: string | null
   accentColor: string
   defaultShippingFee: number
+  defaultFreeShippingThreshold: number | null
   announcementBar: string | null
   hero: Hero
   promo: Promo
@@ -41,6 +42,7 @@ const form = reactive({
   faviconUrl: null as string | null,
   accentColor: '#bb6540',
   defaultShippingFee: 0,
+  defaultFreeShippingThreshold: null as number | null,
   announcementBar: '' as string | null,
   hero: { title: '', subtitle: '', imageUrl: null as string | null, mobileImageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
   promo: { title: '', subtitle: '' },
@@ -95,6 +97,7 @@ async function load() {
     form.faviconUrl = settings.faviconUrl
     form.accentColor = settings.accentColor
     form.defaultShippingFee = settings.defaultShippingFee / 100
+    form.defaultFreeShippingThreshold = settings.defaultFreeShippingThreshold != null ? settings.defaultFreeShippingThreshold / 100 : null
     form.announcementBar = settings.announcementBar ?? ''
     form.hero = { ...settings.hero }
     form.promo = { ...settings.promo }
@@ -124,6 +127,7 @@ async function save() {
         faviconUrl: form.faviconUrl,
         accentColor: form.accentColor,
         defaultShippingFee: Math.round(form.defaultShippingFee * 100),
+        defaultFreeShippingThreshold: form.defaultFreeShippingThreshold != null ? Math.round(form.defaultFreeShippingThreshold * 100) : null,
         announcementBar: form.announcementBar?.trim() || null,
         hero: form.hero,
         promo: form.promo,
@@ -414,6 +418,9 @@ onMounted(load)
         <template #header><p class="font-medium">Shipping default</p></template>
         <UFormField label="Default shipping fee (DH)" description="Used when no shipping zones/rates are configured yet.">
           <UInputNumber v-model="form.defaultShippingFee" :min="0" :step="1" :step-snapping="false" class="w-full" />
+        </UFormField>
+        <UFormField label="Free shipping bar threshold (DH)" description="Shows a progress bar in the cart, e.g. 'X DH away from free shipping'. Leave empty to hide it. Display-only hint — the real fee is still computed per city at checkout." class="mt-4">
+          <UInputNumber v-model="form.defaultFreeShippingThreshold" :min="0" :step="1" :step-snapping="false" class="w-full" />
         </UFormField>
       </UCard>
 

@@ -54,12 +54,16 @@ interface Product {
   layoutStyle: 'standard' | 'landing'
   landingBenefits: LandingBenefit[] | null
   landingBlocks: LandingBlock[] | null
+  quantityDiscountMinQty: number | null
+  quantityDiscountPercent: number | null
   translations: Partial<Record<'en' | 'ar', TranslationFields>>
 }
 interface Category { id: string, name: string }
 interface AttributeValue { id: string, value: string, swatchHex: string | null }
 interface Attribute { id: string, name: string, displayType: string, values: AttributeValue[] }
 interface SizeGuide { id: string, title: string }
+interface UpsellRow { id: string, position: number, relatedProductId: string, name: string, slug: string | null, basePrice: number, imageUrl: string | null }
+interface ProductSearchResult { id: string, name: string, basePrice: number }
 
 const product = ref<Product | null>(null)
 const categories = ref<Category[]>([])
@@ -76,6 +80,8 @@ const form = reactive({
   layoutStyle: 'standard' as Product['layoutStyle'],
   landingBenefits: [] as LandingBenefit[],
   landingBlocks: [] as LandingBlock[],
+  quantityDiscountMinQty: null as number | null,
+  quantityDiscountPercent: null as number | null,
 })
 
 // USelect can't have an item with value: '' (reserved for "no selection"),
@@ -150,9 +156,13 @@ async function load() {
     form.layoutStyle = p.layoutStyle ?? 'standard'
     form.landingBenefits = p.landingBenefits ? p.landingBenefits.map(b => ({ ...b })) : []
     form.landingBlocks = p.landingBlocks ? p.landingBlocks.map(b => ({ ...b })) : []
+    form.quantityDiscountMinQty = p.quantityDiscountMinQty
+    form.quantityDiscountPercent = p.quantityDiscountPercent
 
     applyTranslationToForm('en', p.translations?.en)
     applyTranslationToForm('ar', p.translations?.ar)
+
+    await loadUpsells()
   }
   catch (e) {
     toast.add({ title: 'Failed to load product', description: apiErrorMessage(e), color: 'error' })
@@ -187,6 +197,8 @@ async function save() {
         landingBlocks: form.layoutStyle === 'landing'
           ? form.landingBlocks.filter(b => b.imageUrl).map(b => ({ imageUrl: b.imageUrl, caption: b.caption || undefined }))
           : null,
+        quantityDiscountMinQty: form.quantityDiscountMinQty || null,
+        quantityDiscountPercent: form.quantityDiscountPercent || null,
       },
     })
     toast.add({ title: 'Product saved', color: 'success' })
@@ -697,6 +709,93 @@ function variantLabel(variant: Variant) {
   return variant.attributes.map(a => `${a.attributeName}: ${a.value}`).join(' / ') || '—'
 }
 
+// --- Frequently bought together (Roadmap Phase D) ---
+const upsells = ref<UpsellRow[]>([])
+const upsellSearch = ref('')
+const upsellResults = ref<ProductSearchResult[]>([])
+const upsellSearching = ref(false)
+const addingUpsellId = ref<string | null>(null)
+const removingUpsellId = ref<string | null>(null)
+const movingUpsellId = ref<string | null>(null)
+let upsellSearchTimeout: ReturnType<typeof setTimeout> | undefined
+
+async function loadUpsells() {
+  upsells.value = await apiFetch<UpsellRow[]>(`/api/admin/products/${productId}/upsells`)
+}
+
+function onUpsellSearchInput() {
+  clearTimeout(upsellSearchTimeout)
+  if (!upsellSearch.value.trim()) {
+    upsellResults.value = []
+    return
+  }
+  upsellSearchTimeout = setTimeout(runUpsellSearch, 300)
+}
+
+async function runUpsellSearch() {
+  upsellSearching.value = true
+  try {
+    const result = await apiFetch<{ rows: ProductSearchResult[] }>('/api/admin/products', {
+      query: { search: upsellSearch.value.trim(), pageSize: 8 },
+    })
+    const existingIds = new Set(upsells.value.map(u => u.relatedProductId))
+    upsellResults.value = result.rows.filter(r => r.id !== productId && !existingIds.has(r.id))
+  }
+  catch (e) {
+    toast.add({ title: 'Search failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    upsellSearching.value = false
+  }
+}
+
+async function addUpsell(relatedProductId: string) {
+  addingUpsellId.value = relatedProductId
+  try {
+    upsells.value = await apiFetch<UpsellRow[]>(`/api/admin/products/${productId}/upsells`, {
+      method: 'POST',
+      body: { relatedProductId },
+    })
+    upsellResults.value = upsellResults.value.filter(r => r.id !== relatedProductId)
+    toast.add({ title: 'Companion added', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to add companion', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    addingUpsellId.value = null
+  }
+}
+
+async function removeUpsell(upsellId: string) {
+  removingUpsellId.value = upsellId
+  try {
+    upsells.value = await apiFetch<UpsellRow[]>(`/api/admin/products/${productId}/upsells/${upsellId}`, { method: 'DELETE' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to remove companion', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    removingUpsellId.value = null
+  }
+}
+
+async function moveUpsell(upsellId: string, direction: 'up' | 'down') {
+  movingUpsellId.value = upsellId
+  try {
+    upsells.value = await apiFetch<UpsellRow[]>(`/api/admin/products/${productId}/upsells/${upsellId}/move`, {
+      method: 'PUT',
+      body: { direction },
+    })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to reorder', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    movingUpsellId.value = null
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -732,6 +831,21 @@ onMounted(load)
             </UFormField>
             <UFormField label="Base price (DH)"><UInputNumber v-model="form.basePrice" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
             <UFormField label="Compare-at price (DH)"><UInputNumber v-model="form.compareAtPrice" :min="0" :step="1" :step-snapping="false" class="w-full" /></UFormField>
+          </div>
+
+          <div>
+            <p class="text-sm font-medium">Quantity discount (optional)</p>
+            <p class="text-xs text-stone-400">
+              e.g. "buy 2+, save 10%" — applied automatically in the cart and on the direct-order form.
+            </p>
+            <div class="mt-2 grid grid-cols-2 gap-4">
+              <UFormField label="Minimum quantity">
+                <UInputNumber v-model="form.quantityDiscountMinQty" :min="2" :max="999" class="w-full" />
+              </UFormField>
+              <UFormField label="Discount %">
+                <UInputNumber v-model="form.quantityDiscountPercent" :min="1" :max="90" class="w-full" />
+              </UFormField>
+            </div>
           </div>
 
           <UFormField label="Size guide">
@@ -1002,6 +1116,57 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+    </UCard>
+
+    <UCard class="mt-6">
+      <template #header><p class="font-medium">Frequently bought together</p></template>
+      <p class="text-sm text-stone-500">
+        Companions shown on this product's page (and, on Landing pages, as an optional one-tap add-on in the order form).
+      </p>
+
+      <p v-if="!upsells.length" class="mt-4 text-sm text-stone-400">
+        No companions added yet.
+      </p>
+      <ul v-else class="mt-4 divide-y divide-stone-100">
+        <li v-for="(upsell, i) in upsells" :key="upsell.id" class="flex items-center gap-3 py-3">
+          <div class="product-media size-12 shrink-0 rounded-md">
+            <img v-if="upsell.imageUrl" :src="upsell.imageUrl" alt="" class="h-full w-full object-cover">
+            <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+              <UIcon name="i-lucide-shirt" class="size-5" />
+            </div>
+          </div>
+          <div class="min-w-0 flex-1">
+            <NuxtLink :to="`/admin/products/${upsell.relatedProductId}`" class="truncate font-medium hover:underline">
+              {{ upsell.name }}
+            </NuxtLink>
+            <p class="text-xs text-stone-400">{{ formatPrice(upsell.basePrice) }}</p>
+          </div>
+          <div class="flex items-center gap-1">
+            <UButton size="xs" variant="ghost" icon="i-lucide-chevron-up" :disabled="i === 0" :loading="movingUpsellId === upsell.id" @click="moveUpsell(upsell.id, 'up')" />
+            <UButton size="xs" variant="ghost" icon="i-lucide-chevron-down" :disabled="i === upsells.length - 1" :loading="movingUpsellId === upsell.id" @click="moveUpsell(upsell.id, 'down')" />
+            <UButton size="xs" variant="ghost" color="error" icon="i-lucide-trash-2" :loading="removingUpsellId === upsell.id" @click="removeUpsell(upsell.id)" />
+          </div>
+        </li>
+      </ul>
+
+      <div class="mt-4 border-t border-stone-100 pt-4">
+        <UInput
+          v-model="upsellSearch" placeholder="Search products to add as a companion…" icon="i-lucide-search"
+          class="w-full" @input="onUpsellSearchInput"
+        />
+        <div v-if="upsellSearching" class="mt-2 text-sm text-stone-400">Searching…</div>
+        <ul v-else-if="upsellResults.length" class="mt-2 divide-y divide-stone-100">
+          <li v-for="result in upsellResults" :key="result.id" class="flex items-center justify-between gap-3 py-2">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium">{{ result.name }}</p>
+              <p class="text-xs text-stone-400">{{ formatPrice(result.basePrice) }}</p>
+            </div>
+            <UButton size="xs" variant="soft" icon="i-lucide-plus" :loading="addingUpsellId === result.id" @click="addUpsell(result.id)">
+              Add
+            </UButton>
+          </li>
+        </ul>
+      </div>
     </UCard>
 
     <UModal v-model:open="aiImagesModalOpen" title="Generate more photos with AI" :ui="{ content: 'sm:max-w-2xl' }">

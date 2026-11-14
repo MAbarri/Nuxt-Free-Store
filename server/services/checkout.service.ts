@@ -7,7 +7,9 @@ import { ordersService } from './orders.service'
 import { analyticsService } from './analytics.service'
 import { productsRepository } from '../repositories/products.repository'
 import { variantsRepository } from '../repositories/variants.repository'
+import { productUpsellsRepository } from '../repositories/productUpsells.repository'
 import { resolveCustomerProfileId } from '../utils/customer'
+import { applyQuantityDiscount } from '../utils/pricing'
 
 export interface CheckoutInput {
   fullName: string
@@ -22,6 +24,11 @@ export interface DirectOrderInput extends CheckoutInput {
   productId: string
   variantId: string
   quantity: number
+  // Optional "frequently bought together" add-on, fixed at quantity 1 (see
+  // Roadmap Phase D) — must be a configured upsell of productId, revalidated
+  // server-side rather than trusted from the client.
+  companionProductId?: string
+  companionVariantId?: string
 }
 
 function buildOrderNumber(): string {
@@ -61,6 +68,47 @@ async function assertCartIsOrderable(cart: Awaited<ReturnType<typeof cartService
       statusMessage: 'Some items in your cart exceed available stock. Please update the quantities to continue.',
       data: { itemIds: exceeding.map(i => i.id) },
     })
+  }
+}
+
+/**
+ * Resolves and validates the optional Landing-page companion add-on
+ * (Roadmap Phase D). Always fixed at quantity 1. Revalidates server-side
+ * that the companion is actually a configured upsell of the main product —
+ * never trusts the client for which extra item/price gets added to the order.
+ */
+async function resolveCompanionItem(event: H3Event, mainProductId: string, companionProductId?: string, companionVariantId?: string): Promise<OrderItemInput | null> {
+  if (!companionProductId || !companionVariantId) return null
+
+  const isConfiguredUpsell = await productUpsellsRepository.exists(event, mainProductId, companionProductId)
+  if (!isConfiguredUpsell) {
+    throw createError({ statusCode: 422, statusMessage: 'This companion item is not available for this product' })
+  }
+
+  const companionProduct = await productsRepository.findById(event, companionProductId)
+  if (!companionProduct || companionProduct.status !== 'active') {
+    throw createError({ statusCode: 404, statusMessage: 'Companion product not found' })
+  }
+
+  const companionVariants = await variantsRepository.listByProduct(event, companionProduct.id)
+  const companionVariant = companionVariants.find(v => v.id === companionVariantId)
+  if (!companionVariant || !companionVariant.isActive || companionVariant.stock < 1) {
+    throw createError({ statusCode: 409, statusMessage: 'The companion item is no longer available' })
+  }
+
+  const unitPrice = companionVariant.price ?? companionProduct.basePrice
+  const { subtotal } = applyQuantityDiscount(unitPrice, 1, companionProduct.quantityDiscountMinQty, companionProduct.quantityDiscountPercent)
+  const variantLabel = companionVariant.attributes.map(a => `${a.attributeName}: ${a.value}`).join(' / ') || null
+
+  return {
+    productId: companionProduct.id,
+    variantId: companionVariant.id,
+    productName: companionProduct.name,
+    variantLabel,
+    sku: companionVariant.sku,
+    unitPrice,
+    quantity: 1,
+    subtotal,
   }
 }
 
@@ -166,7 +214,8 @@ export const checkoutService = {
    * Places an order for a single product/variant directly, with no cart
    * involved — used by Landing-style product pages' embedded order form.
    * Reuses the same stock-decrement, shipping-fee, and order-number logic
-   * as `createOrder`, scoped to a single line item.
+   * as `createOrder`. Optionally includes one fixed-quantity-1 "frequently
+   * bought together" companion as a second line item (Roadmap Phase D).
    */
   async createDirectOrder(event: H3Event, input: DirectOrderInput) {
     const product = await productsRepository.findById(event, input.productId)
@@ -190,7 +239,23 @@ export const checkoutService = {
     }
 
     const unitPrice = variant.price ?? product.basePrice
-    const subtotal = unitPrice * input.quantity
+    const { subtotal: mainSubtotal } = applyQuantityDiscount(unitPrice, input.quantity, product.quantityDiscountMinQty, product.quantityDiscountPercent)
+    const variantLabel = variant.attributes.map(a => `${a.attributeName}: ${a.value}`).join(' / ') || null
+
+    const mainItem: OrderItemInput = {
+      productId: product.id,
+      variantId: variant.id,
+      productName: product.name,
+      variantLabel,
+      sku: variant.sku,
+      unitPrice,
+      quantity: input.quantity,
+      subtotal: mainSubtotal,
+    }
+
+    const companionItem = await resolveCompanionItem(event, product.id, input.companionProductId, input.companionVariantId)
+    const items = companionItem ? [mainItem, companionItem] : [mainItem]
+    const subtotal = items.reduce((sum, i) => sum + i.subtotal, 0)
 
     const { fee: shippingFee } = await shippingService.calculateFee(event, input.city, subtotal)
     const total = subtotal + shippingFee
@@ -202,19 +267,28 @@ export const checkoutService = {
       email: input.email || null,
     })
 
-    await inventoryService.adjustStock(event, variant.id, -input.quantity, 'order_placed')
-
-    const variantLabel = variant.attributes.map(a => `${a.attributeName}: ${a.value}`).join(' / ') || null
-
-    const item: OrderItemInput = {
-      productId: product.id,
-      variantId: variant.id,
-      productName: product.name,
-      variantLabel,
-      sku: variant.sku,
-      unitPrice,
-      quantity: input.quantity,
-      subtotal,
+    // Decrement stock for both lines, rolling back whichever already
+    // succeeded if the other fails (e.g. the companion sold out between
+    // page load and submit).
+    const decremented: Array<{ variantId: string, quantity: number }> = []
+    try {
+      for (const item of items) {
+        if (!item.variantId) continue
+        await inventoryService.adjustStock(event, item.variantId, -item.quantity, 'order_placed')
+        decremented.push({ variantId: item.variantId, quantity: item.quantity })
+      }
+    }
+    catch (error) {
+      for (const d of decremented.reverse()) {
+        await inventoryService.adjustStock(event, d.variantId, d.quantity, 'manual_adjustment', {
+          note: 'Automatic rollback: direct order failed after partial stock reservation',
+        }).catch(() => {})
+      }
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'This item is no longer available in the requested quantity',
+        cause: error,
+      })
     }
 
     let orderId: string
@@ -231,13 +305,15 @@ export const checkoutService = {
         subtotal,
         shippingFee,
         total,
-        items: [item],
+        items,
       })
     }
     catch (error) {
-      await inventoryService.adjustStock(event, variant.id, input.quantity, 'manual_adjustment', {
-        note: 'Automatic rollback: direct order failed after stock reservation',
-      }).catch(() => {})
+      for (const d of decremented.reverse()) {
+        await inventoryService.adjustStock(event, d.variantId, d.quantity, 'manual_adjustment', {
+          note: 'Automatic rollback: direct order failed after stock reservation',
+        }).catch(() => {})
+      }
       throw createError({
         statusCode: 409,
         statusMessage: 'Could not place your order. Please try again.',
@@ -249,8 +325,8 @@ export const checkoutService = {
       orderId,
       total,
       currency: 'MAD',
-      productIds: [product.id],
-      numItems: input.quantity,
+      productIds: items.map(i => i.productId).filter((id): id is string => !!id),
+      numItems: items.reduce((sum, i) => sum + i.quantity, 0),
       email: input.email || null,
       phone: input.phone,
     })

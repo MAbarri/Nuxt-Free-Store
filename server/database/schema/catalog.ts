@@ -51,6 +51,11 @@ export const products = sqliteTable('products', {
   landingBenefits: text('landing_benefits', { mode: 'json' }).$type<Array<{ icon?: string, text: string }>>(),
   // Editorial lifestyle photo + caption blocks, e.g. [{ imageUrl, caption }]. Landing layout only.
   landingBlocks: text('landing_blocks', { mode: 'json' }).$type<Array<{ imageUrl: string, caption?: string }>>(),
+  // Optional per-product quantity-break discount, e.g. "buy 2+, save 10%".
+  // Both null/unset = no discount. Applied to a cart line / direct-order
+  // quantity once it reaches quantityDiscountMinQty (see server/utils/pricing.ts).
+  quantityDiscountMinQty: integer('quantity_discount_min_qty'),
+  quantityDiscountPercent: integer('quantity_discount_percent'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
@@ -66,6 +71,21 @@ export const productCategories = sqliteTable('product_categories', {
 }, table => ([
   uniqueIndex('product_categories_unique').on(table.productId, table.categoryId),
   index('product_categories_category_id_idx').on(table.categoryId),
+]))
+
+// Admin-curated "frequently bought together" companions for a product
+// (Roadmap Phase D). Deliberately a flat FK pairing rather than anything
+// smarter/automatic — a merchant with a small catalog knows her own best
+// pairings better than any algorithm would guess from order history.
+export const productUpsells = sqliteTable('product_upsells', {
+  id: text('id').primaryKey(),
+  productId: text('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  relatedProductId: text('related_product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+}, table => ([
+  uniqueIndex('product_upsells_unique').on(table.productId, table.relatedProductId),
+  index('product_upsells_product_id_idx').on(table.productId),
 ]))
 
 export const productImages = sqliteTable('product_images', {

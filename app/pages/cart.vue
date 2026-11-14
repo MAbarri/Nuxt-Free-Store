@@ -5,6 +5,17 @@ useHead({ title: 'Your cart — Atelier Élégance' })
 const { cart, refresh, updateQuantity, removeItem } = useCart()
 await useAsyncData('cart-page', refresh)
 
+const { data: settingsRes } = await useAsyncData('cart-store-settings', () => apiFetch<any>('/api/store-settings'))
+const freeShippingThreshold = computed(() => settingsRes.value?.defaultFreeShippingThreshold ?? null)
+const freeShippingRemaining = computed(() => {
+  if (!freeShippingThreshold.value) return null
+  return Math.max(0, freeShippingThreshold.value - cart.value.subtotal)
+})
+const freeShippingProgress = computed(() => {
+  if (!freeShippingThreshold.value) return 0
+  return Math.min(100, (cart.value.subtotal / freeShippingThreshold.value) * 100)
+})
+
 const updating = ref<string | null>(null)
 async function changeQuantity(itemId: string, quantity: number) {
   updating.value = itemId
@@ -32,7 +43,16 @@ async function changeQuantity(itemId: string, quantity: number) {
       :actions="[{ label: t('common.shopNow'), to: '/products' }]"
     />
 
-    <div v-else class="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]">
+    <div v-if="cart.items.length && freeShippingThreshold" class="mt-8 rounded-lg border border-stone-200 bg-white p-4">
+      <p class="text-sm font-medium" :class="freeShippingRemaining === 0 ? 'text-green-700' : 'text-stone-700'">
+        {{ freeShippingRemaining === 0 ? t('cart.freeShippingUnlocked') : t('cart.freeShippingProgress', { amount: formatPrice(freeShippingRemaining ?? 0) }) }}
+      </p>
+      <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+        <div class="h-full rounded-full bg-clay-600 transition-all" :style="{ width: `${freeShippingProgress}%` }" />
+      </div>
+    </div>
+
+    <div v-if="cart.items.length" class="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]">
       <ul class="divide-y divide-stone-200">
         <li v-for="item in cart.items" :key="item.id" class="flex gap-4 py-5">
           <div class="size-24 shrink-0 overflow-hidden rounded-md bg-stone-100">
