@@ -271,6 +271,31 @@ async function setPrimaryImage(imageId: string) {
   }
 }
 
+// Drag-to-reorder the gallery (also works from a phone — see useDragReorder).
+// Reordering is optimistic (the grid reflows live while dragging); on drop,
+// the new order is persisted, and reloaded from the server if that fails.
+const imagesContainerEl = ref<HTMLElement | null>(null)
+const productImagesRef = computed<ProductImage[]>({
+  get: () => product.value?.images ?? [],
+  set: (val) => { if (product.value) product.value.images = val },
+})
+async function persistImageOrder(orderedIds: string[]) {
+  try {
+    await apiFetch(`/api/admin/products/${productId}/images/reorder`, { method: 'PUT', body: { imageIds: orderedIds } })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to save new image order', description: apiErrorMessage(e), color: 'error' })
+    await load()
+  }
+}
+const { draggingKey: draggingImageKey, startDrag: startImageDrag } = useDragReorder(
+  productImagesRef,
+  (image: ProductImage) => image.id,
+  imagesContainerEl,
+  persistImageOrder,
+)
+
+
 // --- Landing page content (benefits + lifestyle blocks) ---
 function addBenefit() {
   if (form.landingBenefits.length >= 6) return
@@ -891,8 +916,13 @@ onMounted(load)
             </UButton>
           </div>
         </template>
-        <div class="grid grid-cols-2 gap-3">
-          <div v-for="(image, i) in product.images" :key="image.id" class="product-media group relative rounded-md">
+        <div ref="imagesContainerEl" class="grid grid-cols-2 gap-3">
+          <div
+            v-for="(image, i) in product.images" :key="image.id"
+            :data-drag-key="image.id"
+            class="product-media group relative rounded-md"
+            :class="{ 'opacity-50': draggingImageKey === image.id }"
+          >
             <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
             <UBadge v-if="i === 0" size="xs" color="primary" variant="solid" class="absolute left-1 top-1">
               Primary
@@ -911,8 +941,20 @@ onMounted(load)
               class="absolute right-1 top-1 opacity-0 group-hover:opacity-100"
               @click="removeImage(image.id)"
             />
+            <button
+              v-if="product.images.length > 1"
+              type="button"
+              class="touch-none absolute bottom-1 right-1 flex size-7 cursor-grab items-center justify-center rounded-full bg-black/60 text-white active:cursor-grabbing"
+              aria-label="Drag to reorder"
+              @pointerdown="startImageDrag($event, image.id)"
+            >
+              <UIcon name="i-lucide-grip-vertical" class="size-4" />
+            </button>
           </div>
         </div>
+        <p v-if="product.images.length > 1" class="mt-2 text-xs text-stone-400">
+          Drag the grip handle to reorder — the first photo is used as this product's thumbnail everywhere else.
+        </p>
         <label class="mt-3 block">
           <span class="sr-only">Upload image</span>
           <input type="file" accept="image/*" :disabled="uploading" class="text-sm" @change="onFileSelected">

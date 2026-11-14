@@ -89,26 +89,48 @@ function scrollToOrderForm() {
 
 <template>
   <div class="mx-auto max-w-3xl px-4 pb-28 pt-10 sm:px-6">
-    <!-- Gallery -->
-    <div
-      class="product-media aspect-[4/5] touch-pan-y select-none rounded-md"
-      @pointerdown="onPointerDown"
-      @pointerup="onPointerUp"
-      @pointercancel="onPointerCancel"
-    >
-      <img
-        v-if="product.images[activeImage]"
-        :src="product.images[activeImage].url"
-        :alt="product.images[activeImage].altText ?? product.name"
-        class="h-full w-full object-cover"
-        draggable="false"
-        @dragstart.prevent
+    <!-- Gallery. Mobile: unchanged full-width image + horizontal thumbnail
+         strip below. Desktop (lg+): a vertical thumbnail rail on the left
+         next to a height-capped main image, so the gallery never outgrows
+         the viewport — height tracks the window (vh) with both a floor
+         (min-h, for short viewports) and a ceiling (the min() cap, so it
+         doesn't balloon on very tall screens either). -->
+    <div class="lg:flex lg:items-start lg:gap-4">
+      <div
+        v-if="product.images.length > 1"
+        class="hidden lg:flex lg:h-[min(72vh,760px)] lg:min-h-[420px] lg:w-20 lg:shrink-0 lg:flex-col lg:gap-2 lg:overflow-y-auto"
       >
-      <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
-        <UIcon name="i-lucide-image" class="size-10" />
+        <button
+          v-for="(image, i) in product.images" :key="`rail-${image.id}`"
+          type="button"
+          class="aspect-square shrink-0 overflow-hidden rounded-md border"
+          :class="i === activeImage ? 'border-stone-900' : 'border-stone-200'"
+          @click="activeImage = i"
+        >
+          <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-cover">
+        </button>
+      </div>
+
+      <div
+        class="product-media aspect-[4/5] min-w-0 touch-pan-y select-none rounded-md lg:aspect-auto lg:h-[min(72vh,760px)] lg:min-h-[420px] lg:flex-1"
+        @pointerdown="onPointerDown"
+        @pointerup="onPointerUp"
+        @pointercancel="onPointerCancel"
+      >
+        <img
+          v-if="product.images[activeImage]"
+          :src="product.images[activeImage].url"
+          :alt="product.images[activeImage].altText ?? product.name"
+          class="h-full w-full object-cover"
+          draggable="false"
+          @dragstart.prevent
+        >
+        <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
+          <UIcon name="i-lucide-image" class="size-10" />
+        </div>
       </div>
     </div>
-    <div v-if="product.images.length > 1" class="mt-3 flex gap-2">
+    <div v-if="product.images.length > 1" class="mt-3 flex gap-2 lg:hidden">
       <button
         v-for="(image, i) in product.images" :key="image.id"
         type="button"

@@ -160,6 +160,27 @@ export const productsRepository = {
     return row ?? null
   },
 
+  /**
+   * Persists a new display order for a product's gallery, from the admin's
+   * drag-to-reorder UI. `imageIds` is the full new order; any of the
+   * product's images it omits (shouldn't normally happen) keep their
+   * current relative order, appended after, so nothing silently vanishes
+   * from the gallery if the client sends a stale/partial list.
+   */
+  async reorderImages(event: H3Event, productId: string, imageIds: string[]) {
+    const db = useDb(event)
+    const existing = await db.select().from(productImages).where(eq(productImages.productId, productId)).orderBy(asc(productImages.sortOrder))
+    const existingIds = new Set(existing.map(i => i.id))
+    const ordered = [
+      ...imageIds.filter(id => existingIds.has(id)),
+      ...existing.filter(i => !imageIds.includes(i.id)).map(i => i.id),
+    ]
+    for (let i = 0; i < ordered.length; i++) {
+      await db.update(productImages).set({ sortOrder: i }).where(eq(productImages.id, ordered[i]))
+    }
+    return db.select().from(productImages).where(eq(productImages.productId, productId)).orderBy(asc(productImages.sortOrder))
+  },
+
   /** Moves the given image to sortOrder 0 (the gallery's "primary" slot — see wishlist/storefront `images[0]` convention), shifting the rest back while preserving their relative order. */
   async setPrimaryImage(event: H3Event, productId: string, imageId: string) {
     const db = useDb(event)
