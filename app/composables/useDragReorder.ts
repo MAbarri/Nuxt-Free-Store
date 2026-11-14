@@ -1,6 +1,6 @@
 /**
  * Minimal touch+mouse drag-to-reorder for a flat list, built on Pointer
- * Events (same approach as useSwipeGallery) rather than pulling in a
+ * Events (same approach as useDragCarousel) rather than pulling in a
  * dependency — and crucially works from a phone, since the admin must be
  * fully usable from a touchscreen (see SPEC).
  *

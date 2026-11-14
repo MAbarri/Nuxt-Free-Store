@@ -18,7 +18,8 @@ const quantity = ref(1)
 const adding = ref(false)
 
 const imageCount = computed(() => product.value?.images.length ?? 0)
-const { onPointerDown, onPointerUp, onPointerCancel } = useSwipeGallery(activeImage, imageCount)
+const galleryEl = ref<HTMLElement | null>(null)
+const gallery = useDragCarousel(activeImage, imageCount, galleryEl)
 
 const { selectedValues, attributeGroups, selectedVariant, displayPrice, inStock } = useProductVariants(product)
 
@@ -104,19 +105,25 @@ async function addAllCompanionsToCart() {
       <!-- Gallery -->
       <div>
         <div
+          ref="galleryEl"
           class="product-media aspect-[3/4] touch-pan-y select-none rounded-md"
-          @pointerdown="onPointerDown"
-          @pointerup="onPointerUp"
-          @pointercancel="onPointerCancel"
+          :class="gallery.isDragging.value ? 'cursor-grabbing' : product.images.length > 1 ? 'cursor-grab' : ''"
+          @pointerdown="gallery.onPointerDown"
+          @pointermove="gallery.onPointerMove"
+          @pointerup="gallery.onPointerUp"
+          @pointercancel="gallery.onPointerCancel"
         >
-          <img
-            v-if="product.images[activeImage]"
-            :src="product.images[activeImage].url"
-            :alt="product.images[activeImage].altText ?? product.name"
-            class="h-full w-full object-contain"
-            draggable="false"
-            @dragstart.prevent
-          >
+          <div v-if="product.images.length" class="flex h-full w-full" :style="gallery.trackStyle.value">
+            <div v-for="image in product.images" :key="image.id" class="h-full w-full shrink-0 basis-full">
+              <img
+                :src="image.url"
+                :alt="image.altText ?? product.name"
+                class="h-full w-full object-contain"
+                draggable="false"
+                @dragstart.prevent
+              >
+            </div>
+          </div>
           <div v-else class="flex h-full w-full items-center justify-center bg-stone-100 text-stone-300">
             <UIcon name="i-lucide-image" class="size-10" />
           </div>
@@ -127,7 +134,7 @@ async function addAllCompanionsToCart() {
             type="button"
             class="size-16 overflow-hidden rounded-md border bg-stone-100"
             :class="i === activeImage ? 'border-stone-900' : 'border-stone-200'"
-            @click="activeImage = i"
+            @click="gallery.goTo(i)"
           >
             <img :src="image.url" :alt="image.altText ?? ''" class="h-full w-full object-contain">
           </button>
