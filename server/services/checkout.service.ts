@@ -89,7 +89,11 @@ export const checkoutService = {
     // Reserve the order number before touching stock, so a failed insert
     // never leaves us having decremented inventory for nothing.
     const orderNumber = await generateUniqueOrderNumber(event)
-    const customerProfileId = await resolveCustomerProfileId(event)
+    const customerProfileId = await resolveCustomerProfileId(event, {
+      phone: input.phone,
+      fullName: input.fullName,
+      email: input.email || null,
+    })
 
     // Decrement stock for every line item through the same concurrency-safe
     // path used everywhere else, rolling back whatever already succeeded if
@@ -192,7 +196,11 @@ export const checkoutService = {
     const total = subtotal + shippingFee
 
     const orderNumber = await generateUniqueOrderNumber(event)
-    const customerProfileId = await resolveCustomerProfileId(event)
+    const customerProfileId = await resolveCustomerProfileId(event, {
+      phone: input.phone,
+      fullName: input.fullName,
+      email: input.email || null,
+    })
 
     await inventoryService.adjustStock(event, variant.id, -input.quantity, 'order_placed')
 

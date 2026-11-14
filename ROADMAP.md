@@ -24,7 +24,7 @@ already arriving, and generating more of the ad/content work by herself.
 
 | Phase | Status |
 |---|---|
-| A. Customer identity rework (phone-based, account-free) | ❌ Not started |
+| A. Customer identity rework (phone-based, account-free) | ✅ Done |
 | B. "Confirm via WhatsApp" button | ❌ Not started |
 | C. Homepage richness (bestsellers + trust badges) | ❌ Not started |
 | D. Upsell / cross-sell (rule-based) | ❌ Not started |
@@ -38,19 +38,19 @@ new AI surface area, G being the biggest lift — do it last).
 
 ---
 
-## Open decisions to confirm before/while building (flagged during planning, not yet confirmed)
+## Open decisions — confirmed by user
 
-1. **Phase D**: on Landing-style product pages (single-item direct-order
-   form, no cart), "frequently bought together" companions are shown as
-   simple links to their own page, *not* merged into the one-item order
-   form. Confirm this is acceptable, vs. extending `createDirectOrder` to
-   support a second line item (bigger change).
-2. **Phase D**: quantity-break discounts (buy 2, save 10%) are **cut** from
-   this round — real pricing-engine work that competes with cross-sell for
-   the same AOV goal. Revisit later if cross-sell alone isn't enough.
+1. **Phase D**: Landing-page companions **do** get full multi-item support —
+   `createDirectOrder` is extended to accept a second line item (the
+   companion), not just a link-out. The companion is a fixed-quantity-1
+   add-on (its own default/first-active variant), not a full quantity
+   selector.
+2. **Phase D**: quantity-break discounts (buy X, save Y%) **are** in scope,
+   configurable **per-product** (an optional rule set on each product's edit
+   page), applied on both classic cart lines and the direct-order quantity
+   selector.
 3. **Phase E**: reviews are shown as entered, **not** auto-translated
-   per-locale like product content is. Confirm, or fold review translation
-   into the existing `product_translations`-style pattern.
+   per-locale like product content is.
 4. **Phase D**: the cart free-shipping progress bar is driven by one new
    global `defaultFreeShippingThreshold` setting (display-only — the real
    fee is still computed correctly per-city at checkout via

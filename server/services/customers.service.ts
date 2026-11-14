@@ -25,4 +25,8 @@ export const customersService = {
     await customersRepository.updateNotes(event, profileId, notes || null)
     return this.getDetail(event, profileId)
   },
+
+  backfillFromOrders(event: H3Event) {
+    return customersRepository.backfillFromOrders(event)
+  },
 }

@@ -48,7 +48,9 @@ async function seedCustomer() {
     id: userId, email: `${userId}@example.com`, passwordHash: 'x', role: 'customer', createdAt: now, updatedAt: now,
   })
   const profileId = generateId('cprof')
-  await db.insert(schema.customerProfiles).values({ id: profileId, userId, createdAt: now, updatedAt: now })
+  await db.insert(schema.customerProfiles).values({
+    id: profileId, userId, phone: `06${profileId.slice(-8)}`, fullName: 'Merge Test Customer', createdAt: now, updatedAt: now,
+  })
   return profileId
 }
 

@@ -3,10 +3,11 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 
 interface CustomerRow {
   profileId: string
-  userId: string
+  userId: string | null
   fullName: string | null
-  email: string
+  email: string | null
   phone: string | null
+  hasAccount: boolean
   totalOrders: number
   totalSpent: number
 }
@@ -18,6 +19,7 @@ const page = ref(1)
 const pageSize = 20
 const search = ref('')
 const loading = ref(true)
+const backfilling = ref(false)
 
 async function load() {
   loading.value = true
@@ -36,6 +38,25 @@ async function load() {
   }
 }
 
+async function backfill() {
+  backfilling.value = true
+  try {
+    const result = await apiFetch<{ ordersUpdated: number, profilesCreated: number }>('/api/admin/customers/backfill', { method: 'POST' })
+    toast.add({
+      title: 'Backfill complete',
+      description: `${result.profilesCreated} customer(s) created from ${result.ordersUpdated} order(s).`,
+      color: 'success',
+    })
+    await load()
+  }
+  catch (e) {
+    toast.add({ title: 'Backfill failed', description: apiErrorMessage(e), color: 'error' })
+  }
+  finally {
+    backfilling.value = false
+  }
+}
+
 watch(page, load)
 onMounted(load)
 </script>
@@ -46,9 +67,12 @@ onMounted(load)
       Customers
     </h1>
 
-    <div class="mt-4 flex items-end gap-3">
+    <div class="mt-4 flex flex-wrap items-end gap-3">
       <UInput v-model="search" placeholder="Search by name, email or phone…" icon="i-lucide-search" @keyup.enter="load" />
       <UButton variant="soft" @click="load">Search</UButton>
+      <UButton variant="ghost" icon="i-lucide-refresh-ccw" :loading="backfilling" @click="backfill">
+        Backfill from orders
+      </UButton>
     </div>
 
     <div class="mt-6 overflow-hidden rounded-lg border border-stone-200 bg-white">
@@ -66,13 +90,21 @@ onMounted(load)
             <td colspan="4" class="px-4 py-8 text-center text-stone-400">Loading…</td>
           </tr>
           <tr v-else-if="!rows.length">
-            <td colspan="4" class="px-4 py-8 text-center text-stone-400">No customers found.</td>
+            <td colspan="4" class="px-4 py-8 text-center text-stone-400">
+              <p>No customers found.</p>
+              <UButton class="mt-3" size="sm" variant="soft" :loading="backfilling" @click="backfill">
+                No customers yet — backfill from existing orders
+              </UButton>
+            </td>
           </tr>
           <tr v-for="customer in rows" :key="customer.profileId" class="border-t border-stone-100">
             <td class="px-4 py-3 font-medium">
               <NuxtLink :to="`/admin/customers/${customer.profileId}`" class="hover:underline">
                 {{ customer.fullName || 'Unnamed customer' }}
               </NuxtLink>
+              <UBadge size="xs" :color="customer.hasAccount ? 'primary' : 'neutral'" variant="subtle" class="ml-2">
+                {{ customer.hasAccount ? 'Has account' : 'Guest' }}
+              </UBadge>
             </td>
             <td class="px-4 py-3 text-stone-500">
               {{ customer.email }}

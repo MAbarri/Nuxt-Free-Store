@@ -3,6 +3,7 @@ import type { H3Event } from 'h3'
 import { users, customerProfiles } from '../database/schema'
 import { useDb } from '../utils/db'
 import { generateId } from '../utils/id'
+import { normalizePhoneMA } from '../utils/phone'
 
 export interface CreateUserInput {
   email: string
@@ -41,13 +42,28 @@ export const usersRepository = {
       updatedAt: now,
     })
 
-    if (input.role === 'customer') {
-      await db.insert(customerProfiles).values({
-        id: generateId('cprof'),
-        userId: id,
-        createdAt: now,
-        updatedAt: now,
-      })
+    if (input.role === 'customer' && input.phone) {
+      // Link to an existing phone-keyed profile (e.g. a prior guest
+      // checkout) rather than colliding with the unique phone index.
+      const phone = normalizePhoneMA(input.phone)
+      const [existing] = await db.select().from(customerProfiles).where(eq(customerProfiles.phone, phone)).limit(1)
+      if (existing) {
+        await db.update(customerProfiles).set({
+          userId: existing.userId ?? id,
+          fullName: input.fullName || existing.fullName,
+          updatedAt: now,
+        }).where(eq(customerProfiles.id, existing.id))
+      }
+      else {
+        await db.insert(customerProfiles).values({
+          id: generateId('cprof'),
+          userId: id,
+          phone,
+          fullName: input.fullName ?? '',
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
     }
 
     return this.findById(event, id)

@@ -10,8 +10,9 @@ interface OrderRow { id: string, orderNumber: string, status: string, paymentSta
 interface CustomerDetail {
   profileId: string
   fullName: string | null
-  email: string
+  email: string | null
   phone: string | null
+  hasAccount: boolean
   notes: string | null
   createdAt: string
   totalOrders: number
@@ -77,7 +78,12 @@ onMounted(load)
     <div class="flex items-center justify-between">
       <div>
         <h1 class="font-display text-2xl">{{ customer.fullName || 'Unnamed customer' }}</h1>
-        <p class="text-sm text-stone-500">Customer since {{ formatDate(customer.createdAt) }}</p>
+        <p class="text-sm text-stone-500">
+          Customer since {{ formatDate(customer.createdAt) }}
+          <UBadge size="xs" :color="customer.hasAccount ? 'primary' : 'neutral'" variant="subtle" class="ml-2">
+            {{ customer.hasAccount ? 'Has account' : 'Guest' }}
+          </UBadge>
+        </p>
       </div>
     </div>
 
