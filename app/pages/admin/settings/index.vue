@@ -384,7 +384,10 @@ onMounted(load)
               <UInput v-model="form.accentColor" class="w-full" />
             </div>
           </UFormField>
-          <UFormField label="Logo">
+          <UFormField
+            label="Header logo"
+            description="Shown in the storefront header in place of the store name above. Remove it to go back to showing the name. Also used as the watermark reference for AI-generated photos (see AI generation below)."
+          >
             <div class="flex items-center gap-3">
               <div class="flex size-14 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-50">
                 <img v-if="form.logoUrl" :src="form.logoUrl" alt="Logo" class="h-full w-full object-contain">
@@ -394,6 +397,9 @@ onMounted(load)
                 <span class="sr-only">Upload logo</span>
                 <input type="file" accept="image/*" :disabled="uploadingLogo" class="text-sm" @change="onLogoSelected">
               </label>
+              <UButton v-if="form.logoUrl" size="xs" variant="ghost" color="error" @click="form.logoUrl = null">
+                Remove
+              </UButton>
             </div>
           </UFormField>
           <UFormField label="Favicon" description="Small icon shown in the browser tab. Square image recommended (e.g. 512×512px .png or .ico).">

@@ -3,6 +3,7 @@ const { t } = useI18n()
 
 const { data: settings } = await useAsyncData('store-settings-nav', () => apiFetch<any>('/api/store-settings'))
 const storeName = computed(() => settings.value?.storeName ?? 'Atelier Élégance')
+const logoUrl = computed(() => settings.value?.logoUrl ?? null)
 const announcementBar = computed(() => settings.value?.announcementBar)
 
 const { cart, refresh: refreshCart } = useCart()
@@ -25,9 +26,10 @@ await useAsyncData('cart-init', refreshCart)
 
         <NuxtLink
           to="/"
-          class="justify-self-start font-display text-xl uppercase tracking-[0.22em] md:justify-self-center"
+          class="justify-self-start md:justify-self-center"
         >
-          {{ storeName }}
+          <img v-if="logoUrl" :src="logoUrl" :alt="storeName" class="block max-h-10 w-auto object-contain">
+          <span v-else class="font-display text-xl uppercase tracking-[0.22em]">{{ storeName }}</span>
         </NuxtLink>
 
         <div class="flex items-center justify-end gap-4 text-xs text-stone-500">
