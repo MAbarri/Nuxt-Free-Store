@@ -7,6 +7,7 @@ interface Overview {
   analytics: {
     gaConnected: boolean
     gtmConnected: boolean
+    clarityConnected: boolean
     fbPixelConnected: boolean
     fbConversionsApiConnected: boolean
   }
@@ -78,6 +79,12 @@ onMounted(load)
               <span>Google Tag Manager</span>
               <UBadge size="xs" :color="overview.analytics.gtmConnected ? 'success' : 'neutral'" variant="subtle">
                 {{ overview.analytics.gtmConnected ? 'Connected' : 'Not connected' }}
+              </UBadge>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Microsoft Clarity</span>
+              <UBadge size="xs" :color="overview.analytics.clarityConnected ? 'success' : 'neutral'" variant="subtle">
+                {{ overview.analytics.clarityConnected ? 'Connected' : 'Not connected' }}
               </UBadge>
             </div>
             <div class="flex items-center justify-between">

@@ -50,6 +50,10 @@ const DEFAULTS = {
     // (a destination tag, must load via gtag.js), a GTM container id is
     // meant to load via gtm.js; see useAnalytics.ts's ensureInit.
     gtmContainerId: null as string | null,
+    // Microsoft Clarity project id (short alphanumeric code from
+    // clarity.microsoft.com → Settings → Setup, e.g. "ze23736scu") — loads
+    // Clarity's own session-recording/heatmap script; see useAnalytics.ts.
+    clarityProjectId: null as string | null,
     fbPixelId: null as string | null,
     fbConversionsApiEnabled: false,
   },

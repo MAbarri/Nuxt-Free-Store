@@ -1,6 +1,7 @@
 interface AnalyticsConfig {
   gaMeasurementId: string | null
   gtmContainerId: string | null
+  clarityProjectId: string | null
   fbPixelId: string | null
 }
 
@@ -10,7 +11,7 @@ interface AnalyticsConfig {
 // module-level cache is simpler and avoids re-fetching settings on every
 // client-side navigation.
 let initPromise: Promise<void> | null = null
-const config: AnalyticsConfig = { gaMeasurementId: null, gtmContainerId: null, fbPixelId: null }
+const config: AnalyticsConfig = { gaMeasurementId: null, gtmContainerId: null, clarityProjectId: null, fbPixelId: null }
 
 function loadScriptOnce(id: string, src: string) {
   if (document.getElementById(id)) return
@@ -63,6 +64,20 @@ function initGtmContainer(containerId: string) {
   })(w, document, 'script', 'dataLayer', containerId)
 }
 
+/** Microsoft Clarity's standard tracking code, inlined as-is (straight from clarity.microsoft.com → Settings → Setup) so it runs exactly as Microsoft documents it. Clarity manages its own script tag/queue internally; there's no further setup call needed beyond loading it with the project id baked in. */
+function initClarity(projectId: string) {
+  const w = window as any
+  if (w.clarity) return
+  (function (c: any, l: Document, a: string, r: string, i: string) {
+    c[a] = c[a] || function (...args: unknown[]) { (c[a].q = c[a].q || []).push(args) }
+    const t = l.createElement(r) as HTMLScriptElement
+    t.async = true
+    t.src = `https://www.clarity.ms/tag/${i}`
+    const y = l.getElementsByTagName(r)[0]
+    y.parentNode?.insertBefore(t, y)
+  })(w, document, 'clarity', 'script', projectId)
+}
+
 async function ensureInit(): Promise<void> {
   if (import.meta.server) return
   if (!initPromise) {
@@ -71,6 +86,7 @@ async function ensureInit(): Promise<void> {
         const settings = await apiFetch<{ analytics?: AnalyticsConfig }>('/api/store-settings')
         config.gaMeasurementId = settings.analytics?.gaMeasurementId ?? null
         config.gtmContainerId = settings.analytics?.gtmContainerId ?? null
+        config.clarityProjectId = settings.analytics?.clarityProjectId ?? null
         config.fbPixelId = settings.analytics?.fbPixelId ?? null
       }
       catch {
@@ -116,6 +132,10 @@ async function ensureInit(): Promise<void> {
         // there's no equivalent of the gtag('config', …) call to make here
         // — simply loading the container is the whole integration.
         initGtmContainer(config.gtmContainerId)
+      }
+
+      if (config.clarityProjectId) {
+        initClarity(config.clarityProjectId)
       }
 
       if (config.fbPixelId) {
