@@ -1,5 +1,6 @@
 interface AnalyticsConfig {
   gaMeasurementId: string | null
+  gtmContainerId: string | null
   fbPixelId: string | null
 }
 
@@ -9,7 +10,7 @@ interface AnalyticsConfig {
 // module-level cache is simpler and avoids re-fetching settings on every
 // client-side navigation.
 let initPromise: Promise<void> | null = null
-const config: AnalyticsConfig = { gaMeasurementId: null, fbPixelId: null }
+const config: AnalyticsConfig = { gaMeasurementId: null, gtmContainerId: null, fbPixelId: null }
 
 function loadScriptOnce(id: string, src: string) {
   if (document.getElementById(id)) return
@@ -45,6 +46,23 @@ function initFacebookPixel(pixelId: string) {
   w.fbq('init', pixelId)
 }
 
+/** Google's standard Tag Manager base code (the <script> half of the official install snippet — see Admin → Install Google Tag Manager in tagmanager.google.com), inlined so it runs exactly as documented. The matching <noscript> fallback (for JS-disabled browsers) is injected separately, right after &lt;body&gt;, by app.vue. */
+function initGtmContainer(containerId: string) {
+  const w = window as any
+  w.dataLayer = w.dataLayer || []
+  w.dataLayer.push({ 'gtm.start': Date.now(), event: 'gtm.js' });
+  (function (w2: any, d: Document, s: string, l: string, i: string) {
+    if (d.getElementById(`gtm-script-${i}`)) return
+    const f = d.getElementsByTagName(s)[0]
+    const j = d.createElement(s) as HTMLScriptElement
+    const dl = l !== 'dataLayer' ? `&l=${l}` : ''
+    j.id = `gtm-script-${i}`
+    j.async = true
+    j.src = `https://www.googletagmanager.com/gtm.js?id=${i}${dl}`
+    f.parentNode?.insertBefore(j, f)
+  })(w, document, 'script', 'dataLayer', containerId)
+}
+
 async function ensureInit(): Promise<void> {
   if (import.meta.server) return
   if (!initPromise) {
@@ -52,16 +70,26 @@ async function ensureInit(): Promise<void> {
       try {
         const settings = await apiFetch<{ analytics?: AnalyticsConfig }>('/api/store-settings')
         config.gaMeasurementId = settings.analytics?.gaMeasurementId ?? null
+        config.gtmContainerId = settings.analytics?.gtmContainerId ?? null
         config.fbPixelId = settings.analytics?.fbPixelId ?? null
       }
       catch {
         // Analytics config failing to load should never break the storefront.
       }
 
-      if (config.gaMeasurementId) {
+      // The dataLayer + gtag() shim is shared by both mechanisms below (and
+      // by every gtagEvent() call elsewhere in this file) — GTM's own
+      // official snippet doesn't define `gtag`, only `dataLayer`, but our
+      // event tracking calls gtag('event', …) regardless of which of the
+      // two is configured, so we always set it up once either id is present.
+      if (config.gaMeasurementId || config.gtmContainerId) {
         const w = window as any
         w.dataLayer = w.dataLayer || []
         w.gtag = w.gtag || function gtag(...args: unknown[]) { w.dataLayer.push(args) }
+      }
+
+      if (config.gaMeasurementId) {
+        const w = window as any
         w.gtag('js', new Date())
         // We fire GA4's `page_view` ourselves (see trackPageView) so it
         // fires consistently on client-side SPA navigations too.
@@ -77,6 +105,17 @@ async function ensureInit(): Promise<void> {
         // Mode or ad-blocker issue as first suspected.)
         // https://support.google.com/tagmanager/answer/17231523
         loadScriptOnce('ga4-gtag-js', `https://www.googletagmanager.com/gtag/js?id=${config.gaMeasurementId}`)
+      }
+
+      if (config.gtmContainerId) {
+        // A Google Tag Manager *container* id (GTM-…) is the other valid
+        // case — opposite of the one above: it must load via `gtm.js`, per
+        // Google's own install instructions (Admin → Install Google Tag
+        // Manager). The container manages its own internal tags/triggers
+        // (e.g. a GA4 Configuration tag) from tagmanager.google.com, so
+        // there's no equivalent of the gtag('config', …) call to make here
+        // — simply loading the container is the whole integration.
+        initGtmContainer(config.gtmContainerId)
       }
 
       if (config.fbPixelId) {

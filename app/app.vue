@@ -16,9 +16,21 @@ const lang = computed(() => (isAdmin.value ? 'en' : locale.value))
 
 const { data: settingsRes } = await useAsyncData('app-shell-settings', () => apiFetch<any>('/api/store-settings'))
 
+const gtmContainerId = computed(() => (isAdmin.value ? null : settingsRes.value?.analytics?.gtmContainerId ?? null))
+
 useHead({
   htmlAttrs: { lang, dir },
   link: computed(() => settingsRes.value?.faviconUrl ? [{ rel: 'icon', href: settingsRes.value.faviconUrl }] : []),
+  // The <noscript> half of Google Tag Manager's official install snippet —
+  // the <script> half (which covers the vast majority of real visitors) is
+  // handled client-side by useAnalytics.ts's initGtmContainer, right next to
+  // the Facebook Pixel/GA4 setup it already does the same way.
+  noscript: computed(() => gtmContainerId.value
+    ? [{
+        tagPosition: 'bodyOpen',
+        innerHTML: `<iframe src="https://www.googletagmanager.com/ns.html?id=${gtmContainerId.value}" height="0" width="0" style="display:none;visibility:hidden"></iframe>`,
+      }]
+    : []),
 })
 </script>
 

@@ -6,6 +6,7 @@ interface Overview {
   totalRevenue: number
   analytics: {
     gaConnected: boolean
+    gtmConnected: boolean
     fbPixelConnected: boolean
     fbConversionsApiConnected: boolean
   }
@@ -71,6 +72,12 @@ onMounted(load)
               <span>Google Analytics 4</span>
               <UBadge size="xs" :color="overview.analytics.gaConnected ? 'success' : 'neutral'" variant="subtle">
                 {{ overview.analytics.gaConnected ? 'Connected' : 'Not connected' }}
+              </UBadge>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Google Tag Manager</span>
+              <UBadge size="xs" :color="overview.analytics.gtmConnected ? 'success' : 'neutral'" variant="subtle">
+                {{ overview.analytics.gtmConnected ? 'Connected' : 'Not connected' }}
               </UBadge>
             </div>
             <div class="flex items-center justify-between">

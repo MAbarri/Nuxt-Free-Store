@@ -387,6 +387,7 @@ export const marketingService = {
       totalRevenue: storeOverview.totalRevenue,
       analytics: {
         gaConnected: !!settings.analytics.gaMeasurementId,
+        gtmConnected: !!settings.analytics.gtmContainerId,
         fbPixelConnected: !!settings.analytics.fbPixelId,
         fbConversionsApiConnected: settings.analytics.fbConversionsApiEnabled && !!settings.analytics.fbPixelId && !!env?.FB_CONVERSIONS_ACCESS_TOKEN,
       },

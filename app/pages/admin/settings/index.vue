@@ -4,7 +4,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 interface Hero { title: string, subtitle: string, imageUrl: string | null, mobileImageUrl: string | null, ctaLabel: string, ctaHref: string }
 interface Promo { title: string, subtitle: string }
 interface TrustBadge { icon?: string, label: string }
-interface Analytics { gaMeasurementId: string | null, fbPixelId: string | null, fbConversionsApiEnabled: boolean }
+interface Analytics { gaMeasurementId: string | null, gtmContainerId: string | null, fbPixelId: string | null, fbConversionsApiEnabled: boolean }
 interface SettingsTranslation {
   tagline?: string | null
   announcementBar?: string | null
@@ -47,7 +47,7 @@ const form = reactive({
   hero: { title: '', subtitle: '', imageUrl: null as string | null, mobileImageUrl: null as string | null, ctaLabel: '', ctaHref: '' },
   promo: { title: '', subtitle: '' },
   trustBadges: [] as TrustBadge[],
-  analytics: { gaMeasurementId: null, fbPixelId: null, fbConversionsApiEnabled: false } as Analytics,
+  analytics: { gaMeasurementId: null, gtmContainerId: null, fbPixelId: null, fbConversionsApiEnabled: false } as Analytics,
 })
 
 // --- Translations (English/Arabic — French is the form above) ---
@@ -134,6 +134,7 @@ async function save() {
         trustBadges: form.trustBadges.filter(b => b.label.trim()).map(b => ({ icon: b.icon || undefined, label: b.label })),
         analytics: {
           gaMeasurementId: form.analytics.gaMeasurementId?.trim() || null,
+          gtmContainerId: form.analytics.gtmContainerId?.trim() || null,
           fbPixelId: form.analytics.fbPixelId?.trim() || null,
           fbConversionsApiEnabled: form.analytics.fbConversionsApiEnabled,
         },
@@ -436,8 +437,11 @@ onMounted(load)
           Google Analytics and Facebook Pixel load on the storefront only (never in /admin) once their id is set below.
         </p>
         <div class="mt-4 grid gap-4 md:grid-cols-2">
-          <UFormField label="Google Analytics 4 measurement ID" description="Looks like G-XXXXXXXXXX. Leave empty to disable GA4.">
+          <UFormField label="Google Analytics 4 measurement ID" description="Looks like G-XXXXXXXXXX. Use this if you set up GA4 directly (gtag.js). Leave empty to disable.">
             <UInput v-model="form.analytics.gaMeasurementId" placeholder="G-XXXXXXXXXX" class="w-full" />
+          </UFormField>
+          <UFormField label="Google Tag Manager container ID" description="Looks like GTM-XXXXXXX. Use this instead if Google had you set up Analytics through Tag Manager — loads the official GTM snippet as-is. You can set this alongside or instead of the measurement ID above; leave empty to disable.">
+            <UInput v-model="form.analytics.gtmContainerId" placeholder="GTM-XXXXXXX" class="w-full" />
           </UFormField>
           <UFormField label="Facebook Pixel ID" description="Numeric id from Meta Events Manager. Leave empty to disable the Pixel.">
             <UInput v-model="form.analytics.fbPixelId" placeholder="123456789012345" class="w-full" />

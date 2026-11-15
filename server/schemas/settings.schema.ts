@@ -21,6 +21,7 @@ const trustBadgeSchema = z.object({
 
 const analyticsSchema = z.object({
   gaMeasurementId: z.string().trim().min(1).max(40).nullable().optional(),
+  gtmContainerId: z.string().trim().min(1).max(40).nullable().optional(),
   fbPixelId: z.string().trim().min(1).max(40).nullable().optional(),
   fbConversionsApiEnabled: z.boolean().optional(),
 })

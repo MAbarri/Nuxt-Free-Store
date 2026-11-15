@@ -45,6 +45,11 @@ const DEFAULTS = {
     // Conversion API access token is sensitive and lives as a Cloudflare
     // secret instead (see server/types/env.d.ts), never in this table.
     gaMeasurementId: null as string | null,
+    // Google Tag Manager container id (looks like GTM-XXXXXXX), as an
+    // alternative/additional way to load analytics — unlike gaMeasurementId
+    // (a destination tag, must load via gtag.js), a GTM container id is
+    // meant to load via gtm.js; see useAnalytics.ts's ensureInit.
+    gtmContainerId: null as string | null,
     fbPixelId: null as string | null,
     fbConversionsApiEnabled: false,
   },
